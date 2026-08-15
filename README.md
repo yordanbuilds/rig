@@ -57,9 +57,9 @@ That's the whole thing. On first load, Rig sets itself up:
 - the `rig` command lands on your PATH
 
 Everything setup adds is marked and yours — edit or remove any of it, and
-Rig won't put it back. If <kbd>SUPER</kbd>+<kbd>R</kbd> is already taken,
-Rig steps aside and tells you. And leaving is just as clean:
-`rig uninstall` removes every trace, keeping your stack files.
+Rig won't put it back.
+
+Leaving? `rig uninstall` removes every trace, keeping your stack files.
 
 ## The picker
 
