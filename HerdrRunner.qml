@@ -1,7 +1,6 @@
 import QtQuick
-import Quickshell
 import Quickshell.Io
-import "Builder.js" as Builder
+import "Builder.mjs" as Builder
 
 Item {
   id: root
@@ -16,7 +15,7 @@ Item {
   property var pending: []
 
   function run(steps, ctx, onDone, onError) {
-    if (root.busy) { root.pending.push({ steps: steps, ctx: ctx, onDone: onDone, onError: onError }); return }
+    if (root.busy) { root.pending.push({ steps, ctx, onDone, onError }); return }
     root.steps = steps
     root.ctx = ctx || ({})
     root.index = 0
@@ -28,7 +27,7 @@ Item {
 
   function startNext() {
     if (root.pending.length === 0) return
-    var job = root.pending.shift()
+    const job = root.pending.shift()
     root.run(job.steps, job.ctx, job.onDone, job.onError)
   }
 
@@ -39,9 +38,9 @@ Item {
       Qt.callLater(root.startNext)
       return
     }
-    var step = root.steps[root.index]
-    var argv
-    try { argv = Builder.substituteTokens(step.argv, root.ctx) } catch (e) { fail(step.label + ": " + e.message); return }
+    const step = root.steps[root.index]
+    let argv
+    try { argv = Builder.substituteTokens(step.argv, root.ctx) } catch (e) { fail(`${step.label}: ${e.message}`); return }
     root.lastStdout = ""
     proc.command = argv
     proc.running = true
@@ -58,21 +57,21 @@ Item {
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.lastStdout = text }
     stderr: StdioCollector { id: errOut; waitForEnd: true }
     onExited: function(exitCode) {
-      var step = root.steps[root.index]
+      const step = root.steps[root.index]
       if (exitCode !== 0) {
-        root.fail(step.label + " failed (exit " + exitCode + "): " + (errOut.text || root.lastStdout).slice(0, 400))
+        root.fail(`${step.label} failed (exit ${exitCode}): ` + (errOut.text || root.lastStdout).slice(0, 400))
         return
       }
       if (step.collect) root.ctx[step.collect] = root.lastStdout
       if (step.capture) {
-        var parsed
+        let parsed
         try { parsed = JSON.parse(root.lastStdout) } catch (e) {
-          root.fail(step.label + ": herdr returned non-JSON: " + root.lastStdout.slice(0, 200)); return
+          root.fail(`${step.label}: herdr returned non-JSON: ` + root.lastStdout.slice(0, 200)); return
         }
-        for (var key in step.capture) {
-          var value = Builder.walkPath(parsed, step.capture[key])
+        for (const key in step.capture) {
+          const value = Builder.walkPath(parsed, step.capture[key])
           if (value === undefined || value === null) {
-            root.fail(step.label + ": missing " + step.capture[key] + " in response"); return
+            root.fail(`${step.label}: missing ${step.capture[key]} in response`); return
           }
           root.ctx[key] = String(value)
         }

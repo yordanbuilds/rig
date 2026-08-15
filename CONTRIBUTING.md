@@ -18,7 +18,7 @@ take effect immediately.
 ## Tests
 
 ```bash
-node --test "tests/**/*.test.js"   # Builder unit tests
+node --test "tests/**/*.test.mjs"  # Builder unit tests
 bash tests/scripts.test.sh          # bash surface, sandboxed — no live session needed
 bash tests/live.sh                  # smoke against your running Herdr (skips if down)
 ```

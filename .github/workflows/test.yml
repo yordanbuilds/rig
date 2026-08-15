@@ -11,6 +11,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Unit tests
-        run: node --test "tests/**/*.test.js"
+        run: node --test "tests/**/*.test.mjs"
       - name: Script tests
         run: bash tests/scripts.test.sh

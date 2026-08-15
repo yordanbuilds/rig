@@ -1,6 +1,6 @@
-const test = require("node:test")
-const assert = require("node:assert")
-const B = require("../Builder.js")
+import test from "node:test"
+import assert from "node:assert"
+import * as B from "../Builder.mjs"
 
 const HOME = "/home/u"
 
