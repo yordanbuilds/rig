@@ -151,7 +151,7 @@ fresh_sandbox
 echo 1 >"$SB/jq.out"
 rig-setup
 check "setup skips the bind when SUPER+R is taken" bash -c "! grep -q '>>> rig >>>' '$SB/.config/hypr/bindings.lua'"
-check "setup notifies about the taken key" logged 'omarchy-notification-send Rig is ready SUPER+R was taken'
+check "setup notifies about the taken key" logged 'omarchy-notification-send Rig is ready SUPER+R is taken'
 
 # --- rig-ensure-herdr --------------------------------------------------------
 fresh_sandbox

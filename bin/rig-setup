@@ -20,12 +20,12 @@ mkdir -p "$HOME/.local/bin"
 [[ -e "$HOME/.local/bin/rig" ]] || ln -s "$PLUGIN_DIR/bin/rig" "$HOME/.local/bin/rig"
 
 # --- Keybinding: SUPER+R, only if genuinely free -----------------------------
-bind_note="SUPER+R opens the picker"
+bind_note="Press SUPER+R"
 if ! grep -q '>>> rig >>>' "$BINDINGS" 2>/dev/null; then
   taken=$(hyprctl -j binds 2>/dev/null |
     jq '[.[] | select(.modmask == 64 and (.key | ascii_upcase == "R"))] | length' 2>/dev/null || echo 0)
   if [[ ${taken:-0} -gt 0 ]]; then
-    bind_note="SUPER+R was taken — bind the picker yourself (see README)"
+    bind_note="SUPER+R is taken — bind your own key (see README)"
   else
     cat >>"$BINDINGS" <<'EOF'
 
@@ -39,4 +39,4 @@ fi
 # Menu entries are owned by rig-menu-sync (the caller runs it after setup).
 
 touch "$FLAG"
-notify "Rig is ready" "$bind_note · rig CLI · Omarchy menu → Trigger → Rig"
+notify "Rig is ready" "$bind_note"
