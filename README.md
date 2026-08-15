@@ -52,7 +52,7 @@ omarchy plugin add https://github.com/yordanbuilds/rig.git --enable
 
 That's the whole thing. On first load, Rig sets itself up:
 
-- <kbd>SUPER</kbd>+<kbd>R</kbd> opens the picker
+- <kbd>SUPER</kbd>+<kbd>R</kbd> opens your stacks in the Omarchy menu
 - **Rig** appears in the Omarchy menu, under *Trigger*
 - the `rig` command lands on your PATH
 
@@ -61,33 +61,25 @@ Rig won't put it back.
 
 Leaving? `rig uninstall` removes every trace, keeping your stack files.
 
-## The picker
+## The menu
 
-Hit <kbd>SUPER</kbd>+<kbd>R</kbd> and every stack you've defined is right
-there, with its live status. Type to search, just like the Omarchy menu.
+Your stacks live in the Omarchy menu itself — real menu entries under
+*Trigger → Rig*, not a lookalike. <kbd>SUPER</kbd>+<kbd>R</kbd> opens the
+menu right there: type to search, <kbd>Enter</kbd> to build a stack or
+jump to it if it's already running. Running stacks carry a ✓, checked
+live every time the menu opens. `＋ New` asks for a name and drops you
+straight into your editor with a working template.
+
 Stacks are just files in `~/.config/rig/stacks/` — the filename is the
-stack name. Drop one in, it shows up.
-
-| Key                                | What happens                                                   |
-| ---------------------------------- | -------------------------------------------------------------- |
-| type                               | Filter the list                                                |
-| <kbd>Enter</kbd>                   | Build the stack — or jump to it, if it's already running       |
-| <kbd>Shift</kbd>+<kbd>Enter</kbd>  | Build it in the background and stay where you are              |
-| <kbd>Delete</kbd>                  | Kill a running stack — <kbd>Enter</kbd> confirms               |
-| <kbd>Ctrl</kbd>+<kbd>N</kbd>       | New stack, cloned from the selected one, opened in your editor |
-| <kbd>↑</kbd> <kbd>↓</kbd>          | Navigate                                                       |
-| <kbd>Esc</kbd>                     | Clear the search — or close                                    |
-
-`＋ New` scaffolds a stack from a working template and drops you straight
-into your editor. Broke a definition? The picker shows it as ``, and
-<kbd>Enter</kbd> tells you exactly what's wrong.
+stack name. `rig new` keeps the menu in sync automatically; if you drop
+files in by hand, `rig sync` catches the menu up.
 
 ## The CLI
 
-Prefer to stay in the terminal? Everything the picker does, `rig` does too:
+Prefer to stay in the terminal? The menu is one face of `rig`; the terminal is the other:
 
 ```text
-rig                           open the picker
+rig                           open the stack menu
 rig acme                      build acme — or jump to it, if running
 rig up acme -b                build in the background
 rig kill acme                 close its workspace

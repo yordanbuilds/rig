@@ -11,12 +11,13 @@ die() { echo "rig: $*" >&2; exit 1; }
 usage() {
   cat <<'USAGE'
 Usage:
-  rig                       open the picker
+  rig                       open the stack menu
   rig <stack>               build the stack (or focus it if running)
   rig up <stack> [-b]       same; -b/--background builds without focusing
   rig kill <stack>          close the stack's workspace
   rig new <name> [--from <stack>]   create a stack file and open it in your editor
   rig list                  JSON listing of stacks and their running state
+  rig sync                  refresh Rig's entries in the Omarchy menu
   rig setup                 re-run first-load setup (binding, menu, symlink)
   rig uninstall             remove Rig and everything setup added
 USAGE
@@ -33,9 +34,9 @@ call() { # <method> <json-arg>
 
 cmd="${1:-}"
 case "$cmd" in
-  "") exec omarchy-shell shell toggle "$ID" '{}' ;;
+  "") exec omarchy-shell shell toggle omarchy.menu '{"menu":"trigger.rig"}' ;;
   -h|--help) usage; exit 0 ;;
-  up|kill|new|list|setup|uninstall) shift ;;
+  up|kill|new|list|sync|new-dialog|setup|uninstall) shift ;;
   *) cmd=up ;;   # sugar: rig <stack>
 esac
 
@@ -81,17 +82,34 @@ case "$cmd" in
     [[ -s "$out" ]] || die "no response from the shell plugin"
     cat "$out"; echo
     ;;
+  sync)
+    script="$(readlink -f "${BASH_SOURCE[0]}")"
+    exec "$(dirname "$script")/rig-menu-sync"
+    ;;
+  new-dialog)
+    # Name prompt via the Omarchy menu's input mode (file round-trip).
+    sel=$(mktemp); done_f=$(mktemp); rm -f "$done_f"
+    trap 'rm -f "$sel" "$done_f"' EXIT
+    omarchy-shell shell summon omarchy.menu \
+      "{\"mode\":\"input\",\"prompt\":\"New stack\",\"selectionFile\":\"$sel\",\"doneFile\":\"$done_f\"}" >/dev/null
+    for _ in $(seq 600); do [[ -e "$done_f" ]] && break; sleep 0.1; done
+    [[ -e "$done_f" ]] || die "no response from the menu"
+    name=$(cat "$sel" 2>/dev/null || true)
+    [[ -n "$name" ]] || exit 0   # cancelled
+    exec "$0" new "$name"
+    ;;
   setup)
     script="$(readlink -f "${BASH_SOURCE[0]}")"
-    exec "$(dirname "$script")/rig-setup" --force
+    "$(dirname "$script")/rig-setup" --force
+    exec "$(dirname "$script")/rig-menu-sync"
     ;;
   uninstall)
     [[ -t 0 ]] || die "uninstall is interactive — run it from a terminal"
-    printf 'This removes Rig: the plugin, the SUPER+R binding block, the menu entry,\nand the CLI symlink. Your stacks in ~/.config/rig/stacks/ are kept.\nProceed? [y/N] '
+    printf 'This removes Rig: the plugin, the SUPER+R binding block, the menu entries,\nand the CLI symlink. Your stacks in ~/.config/rig/stacks/ are kept.\nProceed? [y/N] '
     read -r reply
     [[ $reply == y || $reply == Y ]] || die "aborted"
     sed -i '/>>> rig >>>/,/<<< rig <<</d' "$HOME/.config/hypr/bindings.lua" 2>/dev/null || true
-    sed -i '/"trigger\.rig"/d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
+    sed -i '/>>> rig menu >>>/,/<<< rig menu <<</d; /"trigger\.rig/d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
     rm -f "$HOME/.local/bin/rig" "$HOME/.config/rig/.setup-done"
     exec omarchy plugin remove yordanbuilds.rig --yes
     ;;

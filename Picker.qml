@@ -1,11 +1,12 @@
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import QtQuick
-import qs.Commons
-import qs.Ui
 import "Builder.js" as Builder
 
+// Rig's headless core. The stack list lives in the Omarchy menu (entries
+// managed by bin/rig-menu-sync), so this item draws nothing: it hosts the
+// build engine, the IPC methods the CLI calls, and first-load setup.
+// Summoning the plugin forwards to the menu at trigger.rig.
 Item {
   id: root
 
@@ -14,51 +15,44 @@ Item {
   property bool opened: false
 
   readonly property string pluginId: (manifest && manifest.id) || "yordanbuilds.rig"
+  readonly property string pluginDir: Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rig"
+  property string stacksDir: Quickshell.env("HOME") + "/.config/rig/stacks"
+  property string homeDir: Quickshell.env("HOME")
 
   function open(payloadJson) {
-    root.opened = true
-    root.uiState = "list"
-    root.selectedIndex = 0
-    root.filterText = ""
-    root.refresh()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    if (root.shell && typeof root.shell.summon === "function")
+      root.shell.summon("omarchy.menu", JSON.stringify({ menu: "trigger.rig" }))
   }
 
-  function close() {
-    root.opened = false
-  }
+  function close() { }
 
-  function dismiss() {
-    root.opened = false
-    if (root.shell && typeof root.shell.hide === "function") root.shell.hide(root.pluginId)
-  }
+  function toggle() { root.open("{}") }
 
-  function toggle() {
-    if (root.opened) root.dismiss()
-    else root.open("{}")
-  }
-
-  function status() {
-    return root.opened ? "open" : "closed"
-  }
+  function status() { return "closed" }
 
   function notify(title, body) {
     Quickshell.execDetached(["omarchy-notification-send", title, body])
   }
 
-  property string stacksDir: Quickshell.env("HOME") + "/.config/rig/stacks"
-  property string homeDir: Quickshell.env("HOME")
+  function menuSync() {
+    Quickshell.execDetached([root.pluginDir + "/bin/rig-menu-sync"])
+  }
 
   HerdrRunner { id: runner }
   HerdrRunner { id: prepRunner }
 
-  // First-load omakase setup: CLI symlink, SUPER+R binding, menu entry.
-  // rig-setup exits immediately once ~/.config/rig/.setup-done exists.
+  // First-load omakase setup (CLI symlink, keybinding, menu block), then a
+  // menu sync so manually dropped stack files appear after a shell restart.
   Process {
     id: setupProcess
     command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-setup"]
+    onExited: root.menuSync()
   }
   Component.onCompleted: setupProcess.running = true
+
+  function herdrError(msg) {
+    return /connect|connection refused|refused|socket|not running/i.test(msg) ? "no running Herdr server — start herdr first" : msg
+  }
 
   function up(argJson) {
     var arg
@@ -104,7 +98,6 @@ Item {
           { label: "restore focus", argv: ["herdr", "tab", "focus", previousTabId] }
         ], {}, function() {}, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
       }
-      root.refresh()
     }, function(msg) {
       root.notify("Rig: " + name + " build failed", root.herdrError(msg))
     })
@@ -121,7 +114,7 @@ Item {
         try { existing = Builder.parseWorkspaces(ctx.wsjson).byLabel[name] } catch (e) { root.notify("Rig", String(e)); return }
         if (!existing) { root.notify("Rig", "\"" + name + "\" is not running"); return }
         runner.run([{ label: "close workspace", argv: ["herdr", "workspace", "close", existing.id] }],
-          {}, function() { root.refresh() }, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
+          {}, function() {}, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
       }, function(msg) { root.notify("Rig", root.herdrError(msg)) })
     return "killing " + name
   }
@@ -153,111 +146,6 @@ Item {
     return "listing"
   }
 
-  property var rows: []
-  property int selectedIndex: 0
-  property string uiState: "list"
-  property string filterText: ""
-
-  readonly property var visibleRows: {
-    var f = root.filterText.toLowerCase()
-    var out = []
-    for (var i = 0; i < root.rows.length; i++) {
-      var row = root.rows[i]
-      if (row.type === "new" || !f || row.name.toLowerCase().indexOf(f) !== -1) out.push(row)
-    }
-    return out
-  }
-
-  onFilterTextChanged: root.selectedIndex = 0
-
-  function refresh() {
-    prepRunner.run([
-      { label: "list stacks", argv: ["bash", "-c",
-        'for f in "$HOME"/.config/rig/stacks/*.json; do [ -e "$f" ] || continue; printf "%s\\t%s\\n" "$(basename "$f" .json)" "$(base64 -w0 "$f")"; done'],
-        collect: "listing" },
-      { label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }
-    ], {}, function(ctx) {
-      var workspaces = { byLabel: {} }
-      try { workspaces = Builder.parseWorkspaces(ctx.wsjson) } catch (e) { }
-      var next = []
-      Builder.parseStacksListing(ctx.listing || "", Qt.atob).forEach(function(entry) {
-        var row = { type: "stack", name: entry.name, running: false, wsId: null, invalid: false, error: "" }
-        try {
-          var errors = Builder.validate(Builder.normalize(JSON.parse(entry.raw), root.homeDir))
-          if (errors.length) { row.invalid = true; row.error = errors[0] }
-        } catch (e) { row.invalid = true; row.error = String(e.message || e) }
-        var ws = workspaces.byLabel[entry.name]
-        if (ws) { row.running = true; row.wsId = ws.id }
-        next.push(row)
-      })
-      next.sort(function(a, b) { return a.name < b.name ? -1 : 1 })
-      next.push({ type: "new", name: "New", running: false, wsId: null, invalid: false, error: "" })
-      root.rows = next
-      if (root.selectedIndex >= next.length) root.selectedIndex = next.length - 1
-      if (root.selectedIndex < 0) root.selectedIndex = 0
-    }, function(msg) {
-      if (root.rows.length === 0) root.rows = [{ type: "new", name: "New", running: false, wsId: null, invalid: false, error: "" }]
-      root.notify("Rig", root.herdrError(msg))
-    })
-  }
-
-  function herdrError(msg) {
-    return /connect|connection refused|refused|socket|not running/i.test(msg) ? "no running Herdr server — start herdr first" : msg
-  }
-
-  function activateSelected(background) {
-    var row = root.visibleRows[root.selectedIndex]
-    if (!row) return
-    if (row.type === "new") { root.startPrompt("create", null); return }
-    if (row.invalid) { root.notify("Rig: " + row.name + " is invalid", row.error); return }
-    if (row.running) {
-      root.dismiss()
-      runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", row.wsId] }],
-        {}, function() {}, function(msg) { root.notify("Rig", root.herdrError(msg)) })
-      return
-    }
-    var result = root.up(JSON.stringify({ stack: row.name, background: background }))
-    if (result.indexOf("error") === 0) { root.notify("Rig", result); return }
-    if (!background) root.dismiss()
-  }
-
-  property string confirmKillName: ""
-
-  function confirmKill() {
-    var row = root.visibleRows[root.selectedIndex]
-    if (!row || row.type !== "stack" || !row.running) return
-    root.confirmKillName = row.name
-    root.uiState = "confirm-kill"
-  }
-
-  function executeKill() {
-    var name = root.confirmKillName
-    root.confirmKillName = ""
-    root.uiState = "list"
-    if (!name) return
-    root.killStack(JSON.stringify({ stack: name }))
-  }
-
-  property string promptText: ""
-  property string promptMode: "create"   // "create" | "clone"
-  property string promptSource: ""
-
-  function startPrompt(mode, source) {
-    root.promptMode = mode
-    root.promptSource = source || ""
-    root.promptText = mode === "create" ? root.filterText.trim() : ""
-    root.uiState = "prompt-name"
-  }
-
-  function submitPrompt() {
-    var name = root.promptText.trim()
-    root.uiState = "list"
-    if (!name) return
-    var result = root.create(JSON.stringify({ name: name, from: root.promptSource || null }))
-    if (result.indexOf("error") === 0) root.notify("Rig", result)
-    else root.dismiss()
-  }
-
   function create(argJson) {
     var arg
     try { arg = JSON.parse(argJson || "{}") } catch (e) { return "error: bad argument JSON" }
@@ -266,179 +154,18 @@ Item {
     var from = arg.from || null
     if (from !== null && !Builder.NAME_RE.test(from)) return "error: stack names must match A-Za-z0-9._-"
     var target = root.stacksDir + "/" + name + ".json"
-    var source = from ? root.stacksDir + "/" + from + ".json"
-                      : (Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rig/template.json")
+    var source = from ? root.stacksDir + "/" + from + ".json" : root.pluginDir + "/template.json"
     prepRunner.run([
       { label: "create stack file", argv: ["bash", "-c",
         'set -e; mkdir -p "$(dirname "$1")"; [ ! -e "$1" ] || { echo "exists" >&2; exit 3; }; cp "$2" "$1"', "rig-new",
         target, source] }
     ], {}, function() {
+      root.menuSync()
       Quickshell.execDetached(["omarchy-launch-editor", target])
     }, function(msg) {
       if (msg.indexOf("exists") !== -1) root.notify("Rig", "\"" + name + "\" already exists — not overwriting")
       else root.notify("Rig", msg)
     })
     return "created " + name
-  }
-
-  PanelWindow {
-    id: panel
-    visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    WlrLayershell.namespace: "rig-picker"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-    exclusionMode: ExclusionMode.Ignore
-
-    Rectangle { anchors.fill: parent; color: Color.menu.scrim }
-
-    MouseArea { anchors.fill: parent; onClicked: root.dismiss() }
-
-    BorderSurface {
-      id: card
-      width: Math.min(Style.space(300), panel.width - Style.space(40))
-      height: Math.min(content.implicitHeight + Style.spacing.panelPadding * 2, panel.height - Style.space(40))
-      radius: Style.cornerRadius
-      anchors.centerIn: parent
-      color: Color.menu.background
-      borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border, Math.max(1, Style.space(2)))
-      padding: Style.spacing.panelPadding
-
-      MouseArea { anchors.fill: parent; onClicked: {} }
-
-      Item {
-        id: keyCatcher
-        anchors.fill: parent
-        focus: true
-        Keys.priority: Keys.BeforeItem
-        Keys.onPressed: function(event) {
-          if (root.uiState === "prompt-name") {
-            if (event.key === Qt.Key_Escape) { root.uiState = "list"; event.accepted = true }
-            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.submitPrompt(); event.accepted = true }
-            else if (event.key === Qt.Key_Backspace) { root.promptText = root.promptText.slice(0, -1); event.accepted = true }
-            else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
-              root.promptText = root.promptText + event.text; event.accepted = true
-            }
-            return
-          }
-          if (root.uiState === "confirm-kill") {
-            if (event.key === Qt.Key_Escape) { root.confirmKillName = ""; root.uiState = "list"; event.accepted = true }
-            else if (event.key === Qt.Key_Delete || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-              root.executeKill(); event.accepted = true
-            }
-            return
-          }
-          if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.filterText = ""
-            else root.dismiss()
-            event.accepted = true
-          } else if (event.key === Qt.Key_Down) {
-            root.selectedIndex = Math.min(root.selectedIndex + 1, Math.max(0, root.visibleRows.length - 1)); event.accepted = true
-          } else if (event.key === Qt.Key_Up) {
-            root.selectedIndex = Math.max(root.selectedIndex - 1, 0); event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.activateSelected((event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true
-          } else if (event.key === Qt.Key_Delete) {
-            root.confirmKill(); event.accepted = true
-          } else if (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier)) {
-            var row = root.visibleRows[root.selectedIndex]
-            if (row && row.type === "stack") root.startPrompt("clone", row.name)
-            event.accepted = true
-          } else if (event.key === Qt.Key_Backspace) {
-            root.filterText = root.filterText.slice(0, -1); event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127
-                     && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier))) {
-            root.filterText = root.filterText + event.text; event.accepted = true
-          }
-        }
-
-        Column {
-          id: content
-          width: parent.width
-          spacing: Style.space(8)
-
-          readonly property int rowH: Math.max(Style.space(50), Style.font.body + Style.spacing.rowPaddingX * 2)
-
-          // Header doubles as the input line, exactly like the Omarchy menu:
-          // muted placeholder, the typed filter, or the new-stack-name prompt.
-          Rectangle {
-            width: parent.width
-            height: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
-            radius: Style.cornerRadius
-            color: "transparent"
-
-            Text {
-              anchors.left: parent.left
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              text: root.uiState === "prompt-name"
-                ? (root.promptMode === "clone" ? "New from " + root.promptSource + ": " : "New stack: ") + root.promptText + "▏"
-                : (root.filterText || "Rig…")
-              color: Color.menu.text
-              opacity: root.uiState === "prompt-name" || root.filterText ? 1 : 0.58
-              font.family: Style.font.menuFamily
-              font.pixelSize: Style.font.heading
-              elide: Text.ElideRight
-            }
-          }
-
-          Repeater {
-            model: root.uiState === "prompt-name" ? [] : root.visibleRows
-            delegate: Rectangle {
-              required property var modelData
-              required property int index
-              readonly property bool selected: index === root.selectedIndex
-              readonly property bool confirming: root.uiState === "confirm-kill" && selected
-
-              width: content.width
-              height: content.rowH
-              radius: Style.cornerRadius
-              color: selected ? Color.menu.selectedBackground : "transparent"
-
-              Text {
-                width: Style.space(36)
-                anchors.left: parent.left
-                anchors.leftMargin: Style.space(8)
-                anchors.verticalCenter: parent.verticalCenter
-                horizontalAlignment: Text.AlignHCenter
-                font.family: Style.font.menuFamily
-                font.pixelSize: Style.font.iconLarge
-                text: modelData.type === "new" ? "＋" : (modelData.invalid ? "" : (modelData.running ? "●" : "○"))
-                color: modelData.invalid ? Color.urgent
-                     : modelData.running ? Color.accent
-                     : selected ? Color.menu.selectedText : Color.muted
-              }
-
-              Text {
-                anchors.left: parent.left
-                anchors.leftMargin: Style.space(8) + Style.space(36) + Style.space(6)
-                anchors.right: caption.left
-                anchors.rightMargin: Style.space(6)
-                anchors.verticalCenter: parent.verticalCenter
-                elide: Text.ElideRight
-                font.family: Style.font.menuFamily
-                font.pixelSize: Style.font.body
-                color: selected ? Color.menu.selectedText : Color.menu.text
-                text: confirming ? "Kill " + modelData.name + "?" : modelData.name
-              }
-
-              Text {
-                id: caption
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(12)
-                anchors.verticalCenter: parent.verticalCenter
-                font.family: Style.font.menuFamily
-                font.pixelSize: Style.font.caption
-                text: confirming ? "Enter kills · Esc cancels"
-                    : modelData.invalid ? "invalid"
-                    : modelData.running ? "running" : ""
-                color: modelData.invalid && !confirming ? Color.urgent : Color.muted
-              }
-            }
-          }
-        }
-      }
-    }
   }
 }

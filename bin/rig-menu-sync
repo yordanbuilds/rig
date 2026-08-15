@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# rig-menu-sync — regenerate Rig's entries in the Omarchy menu.
+# The stack list lives as real menu rows (trigger.rig.*) inside a marked
+# block of ~/.config/omarchy/extensions/omarchy-menu.jsonc; the menu
+# watches that file, so changes appear without a restart. Runs at plugin
+# load, after `rig new`, and via `rig sync`.
+set -euo pipefail
+
+MENU="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
+STACKS="$HOME/.config/rig/stacks"
+BEGIN='// >>> rig menu >>>  Managed by rig-menu-sync — do not edit inside.'
+END='// <<< rig menu <<<'
+
+block() {
+  printf '  %s\n' "$BEGIN"
+  printf '  "trigger.rig": { "icon": "󰞷", "label": "Rig", "aliases": ["rig", "stacks"] },\n'
+  local f name id
+  for f in "$STACKS"/*.json; do
+    [[ -e $f ]] || continue
+    name="$(basename "$f" .json)"
+    id="${name//./-}"
+    printf '  "trigger.rig.stack-%s": { "icon": "󰆍", "label": "%s", "action": "rig %s", "checked": "herdr workspace list 2>/dev/null | grep -qF %s" },\n' \
+      "$id" "$name" "$name" "'\\\"label\\\":\\\"$name\\\"'"
+  done
+  printf '  "trigger.rig.new": { "icon": "＋", "label": "New", "action": "rig new-dialog" },\n'
+  printf '  %s\n' "$END"
+}
+
+mkdir -p "$(dirname "$MENU")" "$STACKS"
+[[ -e $MENU ]] || printf '{\n}\n' >"$MENU"
+
+tmp="$(mktemp)"
+blocktmp="$(mktemp)"
+trap 'rm -f "$tmp" "$blocktmp"' EXIT
+block >"$blocktmp"
+# Strip the old managed block plus any stray trigger.rig lines from before
+# the block existed, then insert the fresh block before the closing brace,
+# adding a comma to the preceding entry if it lacks one.
+sed '/>>> rig menu >>>/,/<<< rig menu <<</d; /"trigger\.rig/d' "$MENU" |
+  awk -v blockfile="$blocktmp" '
+    { lines[NR] = $0 }
+    END {
+      last = 0
+      for (i = 1; i <= NR; i++) if (lines[i] ~ /^[[:space:]]*}[[:space:]]*$/) last = i
+      if (last == 0) exit 3
+      for (j = last - 1; j >= 1; j--) {
+        t = lines[j]
+        sub(/[[:space:]]+$/, "", t)
+        if (t == "" || t ~ /^[[:space:]]*\/\//) continue
+        if (t !~ /[,{[]$/) lines[j] = lines[j] ","
+        break
+      }
+      for (i = 1; i <= NR; i++) {
+        if (i == last) while ((getline line < blockfile) > 0) print line
+        print lines[i]
+      }
+    }
+  ' >"$tmp"
+mv "$tmp" "$MENU"
