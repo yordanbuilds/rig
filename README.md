@@ -118,6 +118,18 @@ humming along.
 Some panes shouldn't start until something else is ready. Say so with the
 long pane form:
 
+| Key     | Meaning                                                                     |
+| ------- | --------------------------------------------------------------------------- |
+| `run`   | The command                                                                 |
+| `after` | Wait for the named pane — anywhere in the stack — to become ready           |
+| `ready` | Output that marks this pane ready; without it, ready means the command finished |
+
+#### Ready when it finishes
+
+The default: a pane is ready the moment its command exits cleanly. Here
+`sail` boots the containers once, and everything marked `"after": "sail"`
+holds for it — the workers from another tab:
+
 ```json
 {
   "root": "~/Projects/widgets",
@@ -142,15 +154,9 @@ long pane form:
 }
 ```
 
-| Key     | Meaning                                                                     |
-| ------- | --------------------------------------------------------------------------- |
-| `run`   | The command                                                                 |
-| `after` | Wait for the named pane — anywhere in the stack — to become ready           |
-| `ready` | Output that marks this pane ready; without it, ready means the command finished |
+#### Ready when it says so
 
-Here `sail` is ready when its command finishes, and everything marked
-`"after": "sail"` holds until it is — the workers from another tab. A
-long-running upstream declares readiness with `ready` instead:
+A dev server never exits — declare what readiness looks like instead:
 
 ```json
 "server": {
@@ -165,9 +171,9 @@ long-running upstream declares readiness with `ready` instead:
 }
 ```
 
-The wait happens inside the dependent pane, where you can watch it — and
-it gives up after two minutes, so a slow dependency never leaves half
-your workspace dead.
+Either way, the wait happens inside the dependent pane, where you can
+watch it — and it gives up after two minutes, so a slow dependency never
+leaves half your workspace dead.
 
 ## License
 
