@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# rally — CLI face of the Rally Omarchy plugin (yordanbuilds.rally).
+# rig — CLI face of the Rig Omarchy plugin (yordanbuilds.rig).
 # Pure forwarder: every command is one omarchy-shell IPC call; all logic
 # lives in the plugin running inside omarchy-shell.
 set -euo pipefail
 
-ID="yordanbuilds.rally"
+ID="yordanbuilds.rig"
 
-die() { echo "rally: $*" >&2; exit 1; }
+die() { echo "rig: $*" >&2; exit 1; }
 
 usage() {
   cat <<'USAGE'
 Usage:
-  rally                       open the picker
-  rally <stack>               build the stack (or focus it if running)
-  rally up <stack> [-b]       same; -b/--background builds without focusing
-  rally kill <stack>          close the stack's workspace
-  rally new <name> [--from <stack>]   create a stack file and open it in your editor
-  rally list                  JSON listing of stacks and their running state
+  rig                       open the picker
+  rig <stack>               build the stack (or focus it if running)
+  rig up <stack> [-b]       same; -b/--background builds without focusing
+  rig kill <stack>          close the stack's workspace
+  rig new <name> [--from <stack>]   create a stack file and open it in your editor
+  rig list                  JSON listing of stacks and their running state
 USAGE
 }
 
@@ -34,7 +34,7 @@ case "$cmd" in
   "") exec omarchy-shell shell toggle "$ID" '{}' ;;
   -h|--help) usage; exit 0 ;;
   up|kill|new|list) shift ;;
-  *) cmd=up ;;   # sugar: rally <stack>
+  *) cmd=up ;;   # sugar: rig <stack>
 esac
 
 case "$cmd" in

@@ -12,7 +12,7 @@ Item {
   property var manifest: null
   property bool opened: false
 
-  readonly property string pluginId: (manifest && manifest.id) || "yordanbuilds.rally"
+  readonly property string pluginId: (manifest && manifest.id) || "yordanbuilds.rig"
 
   function open(payloadJson) {
     root.opened = true
@@ -44,7 +44,7 @@ Item {
     Quickshell.execDetached(["omarchy-notification-send", title, body])
   }
 
-  property string stacksDir: Quickshell.env("HOME") + "/.config/omarchy/stacks"
+  property string stacksDir: Quickshell.env("HOME") + "/.config/rig/stacks"
   property string homeDir: Quickshell.env("HOME")
 
   HerdrRunner { id: runner }
@@ -66,18 +66,18 @@ Item {
         stack = Builder.normalize(JSON.parse(ctx.raw), root.homeDir)
         errors = Builder.validate(stack)
         workspaces = Builder.parseWorkspaces(ctx.wsjson)
-      } catch (e) { root.notify("Rally: " + name, String(e.message || e)); return }
-      if (errors.length) { root.notify("Rally: " + name + " is invalid", errors[0]); return }
+      } catch (e) { root.notify("Rig: " + name, String(e.message || e)); return }
+      if (errors.length) { root.notify("Rig: " + name + " is invalid", errors[0]); return }
       var existing = workspaces.byLabel[name]
       if (existing) {
         if (!background) runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", existing.id] }],
-          {}, function() {}, function(msg) { root.notify("Rally: " + name, root.herdrError(msg)) })
+          {}, function() {}, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
         return
       }
       root.executePlan(name, stack, background, workspaces.focusedActiveTabId)
     }, function(msg) {
-      if (msg.indexOf("read ") === 0) root.notify("Rally", "no stack named \"" + name + "\" in " + root.stacksDir)
-      else root.notify("Rally: " + name, root.herdrError(msg))
+      if (msg.indexOf("read ") === 0) root.notify("Rig", "no stack named \"" + name + "\" in " + root.stacksDir)
+      else root.notify("Rig: " + name, root.herdrError(msg))
     })
     return "building " + name
   }
@@ -92,11 +92,11 @@ Item {
         runner.run([
           { label: "activate last tab", argv: ["herdr", "tab", "focus", ctx[planObj.lastTabKey]] },
           { label: "restore focus", argv: ["herdr", "tab", "focus", previousTabId] }
-        ], {}, function() {}, function(msg) { root.notify("Rally: " + name, root.herdrError(msg)) })
+        ], {}, function() {}, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
       }
       root.refresh()
     }, function(msg) {
-      root.notify("Rally: " + name + " build failed", root.herdrError(msg))
+      root.notify("Rig: " + name + " build failed", root.herdrError(msg))
     })
   }
 
@@ -108,11 +108,11 @@ Item {
     prepRunner.run([{ label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }],
       {}, function(ctx) {
         var existing
-        try { existing = Builder.parseWorkspaces(ctx.wsjson).byLabel[name] } catch (e) { root.notify("Rally", String(e)); return }
-        if (!existing) { root.notify("Rally", "\"" + name + "\" is not running"); return }
+        try { existing = Builder.parseWorkspaces(ctx.wsjson).byLabel[name] } catch (e) { root.notify("Rig", String(e)); return }
+        if (!existing) { root.notify("Rig", "\"" + name + "\" is not running"); return }
         runner.run([{ label: "close workspace", argv: ["herdr", "workspace", "close", existing.id] }],
-          {}, function() { root.refresh() }, function(msg) { root.notify("Rally: " + name, root.herdrError(msg)) })
-      }, function(msg) { root.notify("Rally", root.herdrError(msg)) })
+          {}, function() { root.refresh() }, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
+      }, function(msg) { root.notify("Rig", root.herdrError(msg)) })
     return "killing " + name
   }
 
@@ -125,7 +125,7 @@ Item {
     if (!out || out.indexOf("/") !== 0) return "error: list needs an absolute \"out\" path"
     prepRunner.run([
       { label: "list stacks", argv: ["bash", "-c",
-        'for f in "$HOME"/.config/omarchy/stacks/*.json; do [ -e "$f" ] || continue; printf "%s\\t%s\\n" "$(basename "$f" .json)" "$(base64 -w0 "$f")"; done'],
+        'for f in "$HOME"/.config/rig/stacks/*.json; do [ -e "$f" ] || continue; printf "%s\\t%s\\n" "$(basename "$f" .json)" "$(base64 -w0 "$f")"; done'],
         collect: "listing" },
       { label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }
     ], {}, function(ctx) {
@@ -137,9 +137,9 @@ Item {
       })
       result.sort(function(a, b) { return a.name < b.name ? -1 : 1 })
       var json = JSON.stringify(result)
-      prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rally-list", json, out] }],
-        {}, function() {}, function(msg) { root.notify("Rally", root.herdrError(msg)) })
-    }, function(msg) { root.notify("Rally", root.herdrError(msg)) })
+      prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rig-list", json, out] }],
+        {}, function() {}, function(msg) { root.notify("Rig", root.herdrError(msg)) })
+    }, function(msg) { root.notify("Rig", root.herdrError(msg)) })
     return "listing"
   }
 
@@ -150,7 +150,7 @@ Item {
   function refresh() {
     prepRunner.run([
       { label: "list stacks", argv: ["bash", "-c",
-        'for f in "$HOME"/.config/omarchy/stacks/*.json; do [ -e "$f" ] || continue; printf "%s\\t%s\\n" "$(basename "$f" .json)" "$(base64 -w0 "$f")"; done'],
+        'for f in "$HOME"/.config/rig/stacks/*.json; do [ -e "$f" ] || continue; printf "%s\\t%s\\n" "$(basename "$f" .json)" "$(base64 -w0 "$f")"; done'],
         collect: "listing" },
       { label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }
     ], {}, function(ctx) {
@@ -174,7 +174,7 @@ Item {
       if (root.selectedIndex < 0) root.selectedIndex = 0
     }, function(msg) {
       if (root.rows.length === 0) root.rows = [{ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" }]
-      root.notify("Rally", root.herdrError(msg))
+      root.notify("Rig", root.herdrError(msg))
     })
   }
 
@@ -186,15 +186,15 @@ Item {
     var row = root.rows[root.selectedIndex]
     if (!row) return
     if (row.type === "new") { root.startPrompt("create", null); return }
-    if (row.invalid) { root.notify("Rally: " + row.name + " is invalid", row.error); return }
+    if (row.invalid) { root.notify("Rig: " + row.name + " is invalid", row.error); return }
     if (row.running) {
       root.dismiss()
       runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", row.wsId] }],
-        {}, function() {}, function(msg) { root.notify("Rally", root.herdrError(msg)) })
+        {}, function() {}, function(msg) { root.notify("Rig", root.herdrError(msg)) })
       return
     }
     var result = root.up(JSON.stringify({ stack: row.name, background: background }))
-    if (result.indexOf("error") === 0) { root.notify("Rally", result); return }
+    if (result.indexOf("error") === 0) { root.notify("Rig", result); return }
     if (!background) root.dismiss()
   }
 
@@ -231,7 +231,7 @@ Item {
     root.uiState = "list"
     if (!name) return
     var result = root.create(JSON.stringify({ name: name, from: root.promptSource || null }))
-    if (result.indexOf("error") === 0) root.notify("Rally", result)
+    if (result.indexOf("error") === 0) root.notify("Rig", result)
     else root.dismiss()
   }
 
@@ -244,16 +244,16 @@ Item {
     if (from !== null && !Builder.NAME_RE.test(from)) return "error: stack names must match A-Za-z0-9._-"
     var target = root.stacksDir + "/" + name + ".json"
     var source = from ? root.stacksDir + "/" + from + ".json"
-                      : (Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rally/template.json")
+                      : (Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rig/template.json")
     prepRunner.run([
       { label: "create stack file", argv: ["bash", "-c",
-        'set -e; mkdir -p "$(dirname "$1")"; [ ! -e "$1" ] || { echo "exists" >&2; exit 3; }; cp "$2" "$1"', "rally-new",
+        'set -e; mkdir -p "$(dirname "$1")"; [ ! -e "$1" ] || { echo "exists" >&2; exit 3; }; cp "$2" "$1"', "rig-new",
         target, source] }
     ], {}, function() {
       Quickshell.execDetached(["omarchy-launch-editor", target])
     }, function(msg) {
-      if (msg.indexOf("exists") !== -1) root.notify("Rally", "\"" + name + "\" already exists — not overwriting")
-      else root.notify("Rally", msg)
+      if (msg.indexOf("exists") !== -1) root.notify("Rig", "\"" + name + "\" already exists — not overwriting")
+      else root.notify("Rig", msg)
     })
     return "created " + name
   }
@@ -263,7 +263,7 @@ Item {
     visible: root.opened
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
-    WlrLayershell.namespace: "rally-picker"
+    WlrLayershell.namespace: "rig-picker"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
@@ -329,7 +329,7 @@ Item {
 
           Text {
             width: parent.width
-            text: "Rally"
+            text: "Rig"
             color: Color.menu.text
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.title

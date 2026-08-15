@@ -1,4 +1,4 @@
-// Builder.js — Rally's pure logic. Imported by QML (import "Builder.js" as Builder)
+// Builder.js — Rig's pure logic. Imported by QML (import "Builder.js" as Builder)
 // and by node for tests. No QML/Qt APIs in this file.
 
 var NAME_RE = /^[A-Za-z0-9._-]+$/
@@ -83,8 +83,8 @@ function validate(stack) {
 }
 
 var TIMEOUT_MS = 120000
-var MARKER = "RALLY_READY"
-var TYPED_MARKER = 'RALLY_"READY"'   // typed into the pane; its echo output is MARKER, the typed line never matches
+var MARKER = "RIG_READY"
+var TYPED_MARKER = 'RIG_"READY"'   // typed into the pane; its echo output is MARKER, the typed line never matches
 
 function shellQuote(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'"

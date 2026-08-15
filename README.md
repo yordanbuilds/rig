@@ -1,72 +1,162 @@
-# Rally
+# Rig
 
-Declarative project stacks for [Herdr](https://herdr.dev), as an
-[Omarchy](https://omarchy.org) shell plugin — the tmuxinator Herdr never had.
+**Project stacks for [Herdr](https://herdr.dev). `rig acme` — and the whole workspace is up.**
 
-One JSON file per project describes your dev stack — server, vite, queue
-workers, scheduler, whatever your mornings need. Press **SUPER+R**, pick a
-stack, and Rally builds the whole Herdr workspace: tabs, evenly split panes,
-commands running, dependent panes waiting for their upstreams to be ready.
+You know the ritual. Open a terminal. Start the server. Split a pane, boot
+Vite. New tab for the queue worker, another for the scheduler, one more to
+actually work in. A couple of minutes of muscle memory before you've written a
+single line of code — every single morning.
+
+Rig ends the ritual. Describe your project's stack once, in one small
+JSON file:
 
 ```json
 {
-  "root": "~/code/apoynt",
-  "server": { "artisan": "php artisan serve", "vite": "npm run dev" },
+  "root": "~/code/acme",
+  "server": {
+    "artisan": "php artisan serve",
+    "vite": "npm run dev"
+  },
   "workers": {
     "queues": "php artisan queue:work",
-    "scheduler": "php artisan schedule:work"
+    "scheduler": "php artisan schedule:work",
+    "reverb": "php artisan reverb:start"
+  },
+  "claude": "claude",
+  "terminal": null
+}
+```
+
+Then bring it up whenever you need it. Rig builds the whole workspace in
+Herdr — tabs, evenly split panes, every process running, dependent panes
+waiting for their upstreams:
+
+```text
+acme
+├─ server     [ artisan ]  [ vite ]
+├─ workers    [ queues ]  [ scheduler ]  [ reverb ]
+├─ claude     [ claude ]
+└─ terminal   [ shell ]              ← you land here, ready to work
+```
+
+The rules fit in your head: top-level keys are tabs, nested objects are
+panes, a string is a command, `null` is an empty terminal. That's the whole
+format. No daemon, no YAML, no dependencies — just a small plugin living in
+your Omarchy shell.
+
+## Installation
+
+Rig is an [Omarchy](https://omarchy.org) shell plugin, so installing it
+is one command:
+
+```bash
+omarchy plugin add https://github.com/yordanbuilds/rig.git --enable
+```
+
+Want the `rig` command too? One symlink:
+
+```bash
+ln -s ~/.config/omarchy/plugins/yordanbuilds.rig/bin/rig ~/.local/bin/rig
+```
+
+Give the picker a home in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + R", "Rig", "omarchy-shell shell toggle yordanbuilds.rig '{}'")
+```
+
+And if you'd like it in the Omarchy menu, add this to
+`~/.config/omarchy/extensions/omarchy-menu.jsonc`:
+
+```jsonc
+{
+  "name": "Rig",
+  "icon": "󰞷",
+  "action": "omarchy-shell shell toggle yordanbuilds.rig '{}'",
+}
+```
+
+That's it. If you're on Omarchy 4 with Herdr, you already have everything
+Rig needs.
+
+## The picker
+
+Hit <kbd>SUPER</kbd>+<kbd>R</kbd> and every stack you've defined is right
+there, with its live status. Stacks are just files in
+`~/.config/rig/stacks/` — the filename is the stack name. Drop one in,
+it shows up.
+
+| Key                               | What happens                                                   |
+| --------------------------------- | -------------------------------------------------------------- |
+| <kbd>Enter</kbd>                  | Build the stack — or jump to it, if it's already running       |
+| <kbd>Shift</kbd>+<kbd>Enter</kbd> | Build it in the background and stay where you are              |
+| <kbd>k</kbd>                      | Kill a running stack — <kbd>k</kbd> again to confirm           |
+| <kbd>n</kbd>                      | New stack, cloned from the selected one, opened in your editor |
+| <kbd>↑</kbd> <kbd>↓</kbd>         | Navigate                                                       |
+| <kbd>Esc</kbd>                    | Close                                                          |
+
+`＋ New` scaffolds a stack from a working template and drops you straight
+into your editor. Broke a definition? The picker shows it as `⚠`, and
+<kbd>Enter</kbd> tells you exactly what's wrong.
+
+## The CLI
+
+Prefer to stay in the terminal? Everything the picker does, `rig` does too:
+
+```text
+rig                           open the picker
+rig acme                      build acme — or jump to it, if running
+rig up acme -b                build in the background
+rig kill acme                 close its workspace
+rig new widgets --from acme   clone a stack definition into your editor
+rig list                      JSON status of every stack, for scripting
+```
+
+Everything is idempotent. `rig acme` on a stack that's already running
+simply takes you there — run it as many times as you like.
+
+## Stack files
+
+- `root` is the only required key: the working directory for every tab.
+  `~` expands, as it should.
+- Every other top-level key is a **tab**, created in file order. A string
+  runs one command. `null` opens an empty terminal. An object opens one
+  pane per entry, split evenly.
+- After a build, focus lands on the **last tab in the file** — end with
+  `"terminal": null` and every morning starts in a fresh shell, with
+  everything else already humming along.
+
+### Waiting on other panes
+
+Some panes shouldn't start until something else is ready. Say so:
+
+```json
+{
+  "root": "~/code/widgets",
+  "server": {
+    "sail": "./vendor/bin/sail up -d",
+    "vite": { "run": "npm run dev", "after": "sail" }
+  },
+  "workers": {
+    "queues": { "run": "sail artisan queue:work", "after": "sail" }
   },
   "terminal": null
 }
 ```
 
-Conventions over configuration: top-level keys are tabs, nested objects are
-panes, a string is a command, `null` is an empty terminal. Need a pane to
-wait for another? `{ "run": "npm run dev", "after": "sail" }`.
+A pane is ready when its command finishes. For long-running processes,
+tell Rig what to look for instead:
 
-## Install
-
-```bash
-omarchy plugin add https://github.com/yordanbuilds/rally.git --enable
-ln -s ~/.config/omarchy/plugins/yordanbuilds.rally/bin/rally ~/.local/bin/rally   # optional CLI
+```json
+"server": { "run": "php artisan serve", "ready": "Server running" },
+"stripe": { "run": "stripe listen --forward-to localhost:8000", "after": "server" }
 ```
 
-Bind the picker to SUPER+R — add to `~/.config/hypr/bindings.lua`:
-
-```lua
-o.bind("SUPER + R", "Rally", "omarchy-shell shell toggle yordanbuilds.rally '{}'")
-```
-
-Optional omarchy-menu entry — add to `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
-
-```jsonc
-{ "name": "Rally", "icon": "󰞷", "action": "omarchy-shell shell toggle yordanbuilds.rally '{}'" }
-```
-
-## Usage
-
-Stack files live in `~/.config/omarchy/stacks/<name>.json` — filename is the
-stack name and the Herdr workspace label. In the picker: Enter builds (or
-focuses, if running), Shift+Enter builds in the background, `k` kills after
-an inline confirm, `n` clones the selected stack, `＋ New` starts from the
-template. Focus lands on the last tab in the file — end with
-`"terminal": null` for an empty terminal tab.
-
-CLI: `rally`, `rally <stack>`, `rally up <stack> [-b]`, `rally kill <stack>`,
-`rally new <name> [--from <stack>]`, `rally list`.
-
-## Stack file reference
-
-- `root` — required; the working directory for every tab. `~` expands.
-- Any other top-level key is a tab: a string (one pane running that
-  command), `null` (an empty terminal), or an object of `pane-name: command`
-  entries, split evenly left-to-right.
-- Extended pane form: `{ "run": "...", "after": "<pane>", "ready": "<text>" }`.
-  `after` waits for the named pane (anywhere in the stack) to be ready.
-  A pane is ready when its command exits successfully — or, if it declares
-  `ready`, when that text appears in its output. Gates time out after 120s
-  and start the pane anyway.
+The waiting happens right inside the dependent pane, where you can watch
+it. And if an upstream never reports ready, Rig starts the pane anyway
+after two minutes — a slow dependency shouldn't leave half your workspace
+dead.
 
 ## License
 
-[MIT](LICENSE)
+Rig is open-source software licensed under the [MIT license](LICENSE).

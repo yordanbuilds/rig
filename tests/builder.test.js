@@ -121,8 +121,8 @@ test("plan: gate prefixes dependent command; auto-marker appended to awaited exi
   const runs = plan.steps.filter(s => s.argv[2] === "run")
   const sail = runs.find(s => s.argv[3] === "@{pane:server.sail}")
   const vite = runs.find(s => s.argv[3] === "@{pane:server.vite}")
-  assert.equal(sail.argv[4], 'sail up -d && echo RALLY_"READY"')
-  assert.equal(vite.argv[4], "herdr pane wait-output @{pane:server.sail} --match 'RALLY_READY' --timeout 120000; npm run dev")
+  assert.equal(sail.argv[4], 'sail up -d && echo RIG_"READY"')
+  assert.equal(vite.argv[4], "herdr pane wait-output @{pane:server.sail} --match 'RIG_READY' --timeout 120000; npm run dev")
 })
 
 test("plan: declared ready pattern is used instead of the marker, shell-quoted", () => {

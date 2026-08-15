@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "yordanbuilds.rally",
-  "name": "Rally",
+  "id": "yordanbuilds.rig",
+  "name": "Rig",
   "version": "1.0.0",
   "author": "Yordan Yordanov",
   "license": "MIT",
-  "description": "Declarative project stacks for Herdr — build a whole workspace from one JSON file",
+  "description": "Project stacks for Herdr — one small JSON file, and the whole workspace is up",
   "kinds": ["overlay"],
   "keepLoaded": true,
   "entryPoints": { "overlay": "Picker.qml" }
