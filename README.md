@@ -175,8 +175,9 @@ A pane counts as ready at the first of:
 If a pane's command fails before becoming ready, panes waiting on it hold
 and say so — fix it, run it again, and they release.
 
-If those rules pick wrong for a process, set `ready` — panes waiting on
-it start as soon as that text appears in its output:
+For a process that neither exits nor listens, declare what ready looks
+like — panes waiting on it start as soon as that text appears in its
+output:
 
 ```json
 "stripe": {
