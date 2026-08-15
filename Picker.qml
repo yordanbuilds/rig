@@ -19,6 +19,7 @@ Item {
     root.opened = true
     root.uiState = "list"
     root.selectedIndex = 0
+    root.filterText = ""
     root.refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -155,6 +156,19 @@ Item {
   property var rows: []
   property int selectedIndex: 0
   property string uiState: "list"
+  property string filterText: ""
+
+  readonly property var visibleRows: {
+    var f = root.filterText.toLowerCase()
+    var out = []
+    for (var i = 0; i < root.rows.length; i++) {
+      var row = root.rows[i]
+      if (row.type === "new" || !f || row.name.toLowerCase().indexOf(f) !== -1) out.push(row)
+    }
+    return out
+  }
+
+  onFilterTextChanged: root.selectedIndex = 0
 
   function refresh() {
     prepRunner.run([
@@ -192,7 +206,7 @@ Item {
   }
 
   function activateSelected(background) {
-    var row = root.rows[root.selectedIndex]
+    var row = root.visibleRows[root.selectedIndex]
     if (!row) return
     if (row.type === "new") { root.startPrompt("create", null); return }
     if (row.invalid) { root.notify("Rig: " + row.name + " is invalid", row.error); return }
@@ -210,7 +224,7 @@ Item {
   property string confirmKillName: ""
 
   function confirmKill() {
-    var row = root.rows[root.selectedIndex]
+    var row = root.visibleRows[root.selectedIndex]
     if (!row || row.type !== "stack" || !row.running) return
     root.confirmKillName = row.name
     root.uiState = "confirm-kill"
@@ -231,7 +245,7 @@ Item {
   function startPrompt(mode, source) {
     root.promptMode = mode
     root.promptSource = source || ""
-    root.promptText = ""
+    root.promptText = mode === "create" ? root.filterText.trim() : ""
     root.uiState = "prompt-name"
   }
 
@@ -310,92 +324,118 @@ Item {
           }
           if (root.uiState === "confirm-kill") {
             if (event.key === Qt.Key_Escape) { root.confirmKillName = ""; root.uiState = "list"; event.accepted = true }
-            else if (event.key === Qt.Key_K || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            else if (event.key === Qt.Key_Delete || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
               root.executeKill(); event.accepted = true
             }
             return
           }
-          if (event.key === Qt.Key_Escape) { root.dismiss(); event.accepted = true }
-          else if (event.key === Qt.Key_Down) {
-            root.selectedIndex = Math.min(root.selectedIndex + 1, Math.max(0, root.rows.length - 1)); event.accepted = true
+          if (event.key === Qt.Key_Escape) {
+            if (root.filterText) root.filterText = ""
+            else root.dismiss()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Down) {
+            root.selectedIndex = Math.min(root.selectedIndex + 1, Math.max(0, root.visibleRows.length - 1)); event.accepted = true
           } else if (event.key === Qt.Key_Up) {
             root.selectedIndex = Math.max(root.selectedIndex - 1, 0); event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.activateSelected((event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true
-          } else if (event.key === Qt.Key_K) {
+          } else if (event.key === Qt.Key_Delete) {
             root.confirmKill(); event.accepted = true
-          } else if (event.key === Qt.Key_N) {
-            var row = root.rows[root.selectedIndex]
+          } else if (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier)) {
+            var row = root.visibleRows[root.selectedIndex]
             if (row && row.type === "stack") root.startPrompt("clone", row.name)
             event.accepted = true
+          } else if (event.key === Qt.Key_Backspace) {
+            root.filterText = root.filterText.slice(0, -1); event.accepted = true
+          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127
+                     && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier))) {
+            root.filterText = root.filterText + event.text; event.accepted = true
           }
         }
 
         Column {
           id: content
           width: parent.width
-          spacing: Style.space(4)
+          spacing: Style.space(8)
 
-          Text {
+          readonly property int rowH: Math.max(Style.space(50), Style.font.body + Style.spacing.rowPaddingX * 2)
+
+          // Header doubles as the input line, exactly like the Omarchy menu:
+          // muted placeholder, the typed filter, or the new-stack-name prompt.
+          Rectangle {
             width: parent.width
-            text: "Rig"
-            color: Color.menu.text
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.title
-            font.bold: true
-            bottomPadding: Style.space(6)
-          }
+            height: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
+            radius: Style.cornerRadius
+            color: "transparent"
 
-          Repeater {
-            model: root.rows
-            delegate: Rectangle {
-              required property var modelData
-              required property int index
-              width: content.width
-              height: rowText.implicitHeight + Style.space(10)
-              radius: Style.space(4)
-              color: index === root.selectedIndex ? Color.menu.selectedBackground : "transparent"
-
-              Text {
-                id: rowText
-                anchors.verticalCenter: parent.verticalCenter
-                x: Style.space(8)
-                width: parent.width - Style.space(16)
-                elide: Text.ElideRight
-                font.family: Style.font.menuFamily
-                font.pixelSize: Style.font.subtitle
-                color: index === root.selectedIndex ? Color.menu.selectedText : Color.menu.text
-                text: {
-                  if (modelData.type === "new") return modelData.name
-                  var glyph = modelData.invalid ? "⚠" : (modelData.running ? "●" : "○")
-                  if (root.uiState === "confirm-kill" && index === root.selectedIndex)
-                    return glyph + "  kill " + modelData.name + "?  (k/Enter confirms, Esc cancels)"
-                  return glyph + "  " + modelData.name
-                }
-              }
-
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(8)
-                visible: modelData.type === "stack"
-                font.family: Style.font.menuFamily
-                font.pixelSize: Style.font.subtitle
-                text: modelData.invalid ? "invalid" : (modelData.running ? "running" : "")
-                color: modelData.invalid ? Color.urgent : Color.accent
-              }
+            Text {
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.uiState === "prompt-name"
+                ? (root.promptMode === "clone" ? "New from " + root.promptSource + ": " : "New stack: ") + root.promptText + "▏"
+                : (root.filterText || "Rig…")
+              color: Color.menu.text
+              opacity: root.uiState === "prompt-name" || root.filterText ? 1 : 0.58
+              font.family: Style.font.menuFamily
+              font.pixelSize: Style.font.heading
+              elide: Text.ElideRight
             }
           }
 
-          Text {
-            width: parent.width
-            visible: root.uiState === "prompt-name"
-            text: (root.promptMode === "clone" ? "New stack from " + root.promptSource + ": " : "New stack: ")
-                  + root.promptText + "▏"
-            color: Color.menu.selectedText
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.subtitle
-            topPadding: Style.space(6)
+          Repeater {
+            model: root.uiState === "prompt-name" ? [] : root.visibleRows
+            delegate: Rectangle {
+              required property var modelData
+              required property int index
+              readonly property bool selected: index === root.selectedIndex
+              readonly property bool confirming: root.uiState === "confirm-kill" && selected
+
+              width: content.width
+              height: content.rowH
+              radius: Style.cornerRadius
+              color: selected ? Color.menu.selectedBackground : "transparent"
+
+              Text {
+                width: Style.space(36)
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                horizontalAlignment: Text.AlignHCenter
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.iconLarge
+                text: modelData.type === "new" ? "＋" : (modelData.invalid ? "" : (modelData.running ? "●" : "○"))
+                color: modelData.invalid ? Color.urgent
+                     : modelData.running ? Color.accent
+                     : selected ? Color.menu.selectedText : Color.muted
+              }
+
+              Text {
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(8) + Style.space(36) + Style.space(6)
+                anchors.right: caption.left
+                anchors.rightMargin: Style.space(6)
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideRight
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.body
+                color: selected ? Color.menu.selectedText : Color.menu.text
+                text: confirming ? "Kill " + modelData.name + "?" : modelData.name
+              }
+
+              Text {
+                id: caption
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(12)
+                anchors.verticalCenter: parent.verticalCenter
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.caption
+                text: confirming ? "Enter kills · Esc cancels"
+                    : modelData.invalid ? "invalid"
+                    : modelData.running ? "running" : ""
+                color: modelData.invalid && !confirming ? Color.urgent : Color.muted
+              }
+            }
           }
         }
       }

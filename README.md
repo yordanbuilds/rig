@@ -64,21 +64,22 @@ Leaving? `rig uninstall` removes every trace, keeping your stack files.
 ## The picker
 
 Hit <kbd>SUPER</kbd>+<kbd>R</kbd> and every stack you've defined is right
-there, with its live status. Stacks are just files in
-`~/.config/rig/stacks/` — the filename is the stack name. Drop one in,
-it shows up.
+there, with its live status. Type to search, just like the Omarchy menu.
+Stacks are just files in `~/.config/rig/stacks/` — the filename is the
+stack name. Drop one in, it shows up.
 
-| Key                               | What happens                                                   |
-| --------------------------------- | -------------------------------------------------------------- |
-| <kbd>Enter</kbd>                  | Build the stack — or jump to it, if it's already running       |
-| <kbd>Shift</kbd>+<kbd>Enter</kbd> | Build it in the background and stay where you are              |
-| <kbd>k</kbd>                      | Kill a running stack — <kbd>k</kbd> again to confirm           |
-| <kbd>n</kbd>                      | New stack, cloned from the selected one, opened in your editor |
-| <kbd>↑</kbd> <kbd>↓</kbd>         | Navigate                                                       |
-| <kbd>Esc</kbd>                    | Close                                                          |
+| Key                                | What happens                                                   |
+| ---------------------------------- | -------------------------------------------------------------- |
+| type                               | Filter the list                                                |
+| <kbd>Enter</kbd>                   | Build the stack — or jump to it, if it's already running       |
+| <kbd>Shift</kbd>+<kbd>Enter</kbd>  | Build it in the background and stay where you are              |
+| <kbd>Delete</kbd>                  | Kill a running stack — <kbd>Enter</kbd> confirms               |
+| <kbd>Ctrl</kbd>+<kbd>N</kbd>       | New stack, cloned from the selected one, opened in your editor |
+| <kbd>↑</kbd> <kbd>↓</kbd>          | Navigate                                                       |
+| <kbd>Esc</kbd>                     | Clear the search — or close                                    |
 
 `＋ New` scaffolds a stack from a working template and drops you straight
-into your editor. Broke a definition? The picker shows it as `⚠`, and
+into your editor. Broke a definition? The picker shows it as ``, and
 <kbd>Enter</kbd> tells you exactly what's wrong.
 
 ## The CLI
