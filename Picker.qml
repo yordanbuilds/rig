@@ -3,6 +3,7 @@ import Quickshell.Wayland
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "Builder.js" as Builder
 
 Item {
   id: root
@@ -39,6 +40,82 @@ Item {
   function notify(title, body) {
     Quickshell.execDetached(["omarchy-notification-send", title, body])
   }
+
+  property string stacksDir: Quickshell.env("HOME") + "/.config/omarchy/stacks"
+  property string homeDir: Quickshell.env("HOME")
+
+  HerdrRunner { id: runner }
+  HerdrRunner { id: prepRunner }
+
+  function up(argJson) {
+    var arg
+    try { arg = JSON.parse(argJson || "{}") } catch (e) { return "error: bad argument JSON" }
+    var name = arg.stack
+    if (!name || !Builder.NAME_RE.test(name)) return "error: invalid stack name"
+    var background = arg.background === true
+    var path = root.stacksDir + "/" + name + ".json"
+    prepRunner.run([
+      { label: "read " + name + ".json", argv: ["cat", path], collect: "raw" },
+      { label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }
+    ], {}, function(ctx) {
+      var stack, errors, workspaces
+      try {
+        stack = Builder.normalize(JSON.parse(ctx.raw), root.homeDir)
+        errors = Builder.validate(stack)
+        workspaces = Builder.parseWorkspaces(ctx.wsjson)
+      } catch (e) { root.notify("Rally: " + name, String(e.message || e)); return }
+      if (errors.length) { root.notify("Rally: " + name + " is invalid", errors[0]); return }
+      var existing = workspaces.byLabel[name]
+      if (existing) {
+        if (!background) runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", existing.id] }],
+          {}, function() {}, function(msg) { root.notify("Rally: " + name, msg) })
+        return
+      }
+      root.executePlan(name, stack, background, workspaces.focusedActiveTabId)
+    }, function(msg) {
+      if (msg.indexOf("read ") === 0) root.notify("Rally", "no stack named \"" + name + "\" in " + root.stacksDir)
+      else root.notify("Rally: " + name, msg)
+    })
+    return "building " + name
+  }
+
+  function executePlan(name, stack, background, previousTabId) {
+    var planObj = Builder.plan(name, stack)
+    var steps = planObj.steps.slice()
+    if (!background) steps = steps.concat(Builder.focusSteps(planObj))
+    runner.run(steps, {}, function(ctx) {
+      if (background && previousTabId) {
+        // Bounce: make the stack's last tab its active tab, then restore the user's view.
+        runner.run([
+          { label: "activate last tab", argv: ["herdr", "tab", "focus", ctx[planObj.lastTabKey]] },
+          { label: "restore focus", argv: ["herdr", "tab", "focus", previousTabId] }
+        ], {}, function() {}, function(msg) { root.notify("Rally: " + name, msg) })
+      }
+      root.refresh()
+    }, function(msg) {
+      root.notify("Rally: " + name + " build failed", msg)
+    })
+  }
+
+  function killStack(argJson) {
+    var arg
+    try { arg = JSON.parse(argJson || "{}") } catch (e) { return "error: bad argument JSON" }
+    var name = arg.stack
+    if (!name) return "error: missing stack name"
+    prepRunner.run([{ label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }],
+      {}, function(ctx) {
+        var existing
+        try { existing = Builder.parseWorkspaces(ctx.wsjson).byLabel[name] } catch (e) { root.notify("Rally", String(e)); return }
+        if (!existing) { root.notify("Rally", "\"" + name + "\" is not running"); return }
+        runner.run([{ label: "close workspace", argv: ["herdr", "workspace", "close", existing.id] }],
+          {}, function() { root.refresh() }, function(msg) { root.notify("Rally: " + name, msg) })
+      }, function(msg) { root.notify("Rally", msg) })
+    return "killing " + name
+  }
+
+  function kill(argJson) { return killStack(argJson) }
+
+  function refresh() { }  // populated in Task 5; safe no-op until then
 
   PanelWindow {
     id: panel
