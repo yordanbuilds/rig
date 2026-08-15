@@ -181,7 +181,47 @@ Item {
     root.killStack(JSON.stringify({ stack: row.name }))
   }
 
-  function startPrompt(mode, source) { }  // populated in Task 6; safe no-op until then
+  property string promptText: ""
+  property string promptMode: "create"   // "create" | "clone"
+  property string promptSource: ""
+
+  function startPrompt(mode, source) {
+    root.promptMode = mode
+    root.promptSource = source || ""
+    root.promptText = ""
+    root.uiState = "prompt-name"
+  }
+
+  function submitPrompt() {
+    var name = root.promptText.trim()
+    root.uiState = "list"
+    if (!name) return
+    var result = root.create(JSON.stringify({ name: name, from: root.promptSource || null }))
+    if (result.indexOf("error") === 0) root.notify("Rally", result)
+    else root.dismiss()
+  }
+
+  function create(argJson) {
+    var arg
+    try { arg = JSON.parse(argJson || "{}") } catch (e) { return "error: bad argument JSON" }
+    var name = arg.name
+    if (!name || !Builder.NAME_RE.test(name)) return "error: stack names must match A-Za-z0-9._-"
+    var from = arg.from || null
+    var target = root.stacksDir + "/" + name + ".json"
+    var source = from ? root.stacksDir + "/" + from + ".json"
+                      : (Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rally/template.json")
+    prepRunner.run([
+      { label: "create stack file", argv: ["bash", "-c",
+        'set -e; mkdir -p "$(dirname "$1")"; [ ! -e "$1" ] || { echo "exists" >&2; exit 3; }; cp "$2" "$1"', "rally-new",
+        target, source] }
+    ], {}, function() {
+      Quickshell.execDetached(["omarchy-launch-editor", target])
+    }, function(msg) {
+      if (msg.indexOf("exists") !== -1) root.notify("Rally", "\"" + name + "\" already exists — not overwriting")
+      else root.notify("Rally", msg)
+    })
+    return "created " + name
+  }
 
   PanelWindow {
     id: panel
@@ -215,6 +255,15 @@ Item {
         focus: true
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
+          if (root.uiState === "prompt-name") {
+            if (event.key === Qt.Key_Escape) { root.uiState = "list"; event.accepted = true }
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.submitPrompt(); event.accepted = true }
+            else if (event.key === Qt.Key_Backspace) { root.promptText = root.promptText.slice(0, -1); event.accepted = true }
+            else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
+              root.promptText = root.promptText + event.text; event.accepted = true
+            }
+            return
+          }
           if (root.uiState === "confirm-kill") {
             if (event.key === Qt.Key_Escape) { root.uiState = "list"; event.accepted = true }
             else if (event.key === Qt.Key_K || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -292,6 +341,17 @@ Item {
                 color: modelData.invalid ? Color.urgent : Color.accent
               }
             }
+          }
+
+          Text {
+            width: parent.width
+            visible: root.uiState === "prompt-name"
+            text: (root.promptMode === "clone" ? "New stack from " + root.promptSource + ": " : "New stack: ")
+                  + root.promptText + "▏"
+            color: Color.menu.selectedText
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.subtitle
+            topPadding: Style.space(6)
           }
         }
       }

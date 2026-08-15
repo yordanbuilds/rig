@@ -1,0 +1,11 @@
+{
+  "root": "~/code/myproject",
+  "server": {
+    "app": "php artisan serve",
+    "vite": "npm run dev"
+  },
+  "workers": {
+    "queues": "php artisan queue:work"
+  },
+  "terminal": null
+}
