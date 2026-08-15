@@ -1,5 +1,7 @@
 # Rig
 
+![Rig — project stacks for Herdr](preview.png)
+
 **Project stacks for [Herdr](https://herdr.dev). `rig acme` — and the whole workspace is up.**
 
 You know the ritual. Open a terminal. Start the server. Split a pane, boot
