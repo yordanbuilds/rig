@@ -122,7 +122,7 @@ test("plan: gate prefixes dependent command; auto-marker appended to awaited exi
   const sail = runs.find(s => s.argv[3] === "@{pane:server.sail}")
   const vite = runs.find(s => s.argv[3] === "@{pane:server.vite}")
   assert.equal(sail.argv[4], 'sail up -d && echo RIG_"READY"')
-  assert.equal(vite.argv[4], "herdr pane wait-output @{pane:server.sail} --match 'RIG_READY' --timeout 120000; npm run dev")
+  assert.equal(vite.argv[4], "\"$HOME\"/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-wait-ready @{pane:server.sail} 'RIG_READY'; npm run dev")
 })
 
 test("plan: declared ready pattern is used instead of the marker, shell-quoted", () => {
@@ -132,7 +132,7 @@ test("plan: declared ready pattern is used instead of the marker, shell-quoted",
   const srv = runs.find(s => s.argv[3] === "@{pane:t.srv}")
   const w = runs.find(s => s.argv[3] === "@{pane:t.w}")
   assert.equal(srv.argv[4], "serve")  // ready-pattern pane gets NO marker
-  assert.equal(w.argv[4], "herdr pane wait-output @{pane:t.srv} --match 'Server running on port' --timeout 120000; work")
+  assert.equal(w.argv[4], "\"$HOME\"/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-wait-ready @{pane:t.srv} 'Server running on port'; work")
 })
 
 test("plan: lastTabKey names the final tab; focusSteps produce the finale", () => {

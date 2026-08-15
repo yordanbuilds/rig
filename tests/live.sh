@@ -27,9 +27,17 @@ mkdir -p "$DIR" /tmp/rigtest-live
 cat >"$FILE" <<'EOF'
 {
   "root": "/tmp/rigtest-live",
-  "server": {
+  "exit": {
     "slow": "sleep 1 && echo serving",
-    "dep": { "run": "echo GATE_RELEASED", "after": "slow" }
+    "dep": { "run": "echo EXIT_GATE_OPEN", "after": "slow" }
+  },
+  "listen": {
+    "srv": "node -e \"const i=setInterval(()=>console.log('boot'),500);setTimeout(()=>{clearInterval(i);require('http').createServer().listen(8931)},4000)\"",
+    "dep2": { "run": "echo LISTEN_GATE_OPEN", "after": "srv" }
+  },
+  "settle": {
+    "quiet": "tail -f /dev/null",
+    "dep3": { "run": "echo SETTLE_GATE_OPEN", "after": "quiet" }
   },
   "terminal": null
 }
@@ -45,20 +53,26 @@ shape=$(herdr workspace list | node -e '
     const w = JSON.parse(d).result.workspaces.find(x => x.label === process.argv[1])
     console.log(w ? w.tab_count + "/" + w.pane_count : "missing")
   })' "$STACK")
-[[ $shape == "2/3" ]] || fail "workspace shape: $shape (want 2/3)"
+[[ $shape == "4/7" ]] || fail "workspace shape: $shape (want 4/7)"
 
-sleep 3
+sleep 7
 ws=$(herdr workspace list | node -e '
   let d = ""
   process.stdin.on("data", c => d += c).on("end", () => {
     console.log(JSON.parse(d).result.workspaces.find(x => x.label === process.argv[1]).workspace_id)
   })' "$STACK")
-pane=$(herdr pane list --workspace "$ws" | node -e '
-  let d = ""
-  process.stdin.on("data", c => d += c).on("end", () => {
-    console.log(JSON.parse(d).result.panes.find(p => p.label === "dep").pane_id)
-  })')
-herdr pane read "$pane" --source recent-unwrapped --lines 30 | grep -q GATE_RELEASED || fail "readiness gate never released"
+gate_open() { # <pane-label> <marker>
+  local pane
+  pane=$(herdr pane list --workspace "$ws" | node -e '
+    let d = ""
+    process.stdin.on("data", c => d += c).on("end", () => {
+      console.log(JSON.parse(d).result.panes.find(p => p.label === process.argv[1]).pane_id)
+    })' "$1")
+  herdr pane read "$pane" --source detection --lines 30 | tr -d '\n' | grep -q "$2"
+}
+gate_open dep EXIT_GATE_OPEN || fail "exit gate never released"
+gate_open dep2 LISTEN_GATE_OPEN || fail "listener gate never released"
+gate_open dep3 SETTLE_GATE_OPEN || fail "settle gate never released"
 
 omarchy-shell shell call yordanbuilds.rig kill "{\"stack\":\"$STACK\"}" >/dev/null
 sleep 2

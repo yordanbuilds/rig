@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# rig-wait-ready <pane-id> [pattern] — the gate behind `after`. Releases
+# when the awaited pane's command finishes (pattern in its output), when a
+# process in that pane opens a new TCP listener, or when the pane's output
+# settles. Gives up after two minutes and lets the dependent start anyway.
+set -u
+
+PANE="${1:?pane id}"
+PATTERN="${2:-RIG_READY}"
+TIMEOUT_MS="${RIG_WAIT_TIMEOUT_MS:-120000}"
+SETTLE_MS="${RIG_WAIT_SETTLE_MS:-2000}"
+MIN_MS="${RIG_WAIT_MIN_MS:-3000}"
+POLL_MS=400
+
+descendants() {
+  local queue=("$1") out=() p c
+  while ((${#queue[@]})); do
+    p="${queue[0]}"; queue=("${queue[@]:1}")
+    out+=("$p")
+    for c in $(cat /proc/"$p"/task/*/children 2>/dev/null); do queue+=("$c"); done
+  done
+  printf '%s\n' "${out[@]}"
+}
+
+pane_listeners() { # inodes of LISTEN sockets held by the pane's process tree
+  local listen fd link inode out="" pid
+  listen=" $(awk '$4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6 2>/dev/null | sort -u | tr '\n' ' ') "
+  for pid in $(descendants "$1"); do
+    for fd in /proc/"$pid"/fd/*; do
+      link=$(readlink "$fd" 2>/dev/null) || continue
+      [[ $link == socket:* ]] || continue
+      inode="${link#socket:[}"; inode="${inode%]}"
+      [[ $listen == *" $inode "* ]] && out+="$inode "
+    done
+  done
+  printf '%s' "$out"
+}
+
+read_pane() {
+  herdr pane read "$PANE" --source detection --lines 40 2>/dev/null || true
+}
+
+shell_pid=$(herdr pane process-info --pane "$PANE" 2>/dev/null |
+  grep -o '"shell_pid":[0-9]*' | grep -o '[0-9]*$' || true)
+baseline=""
+[[ -n $shell_pid ]] && baseline=" $(pane_listeners "$shell_pid") "
+
+elapsed=0 stable=0 last=""
+while (( elapsed < TIMEOUT_MS )); do
+  snap=$(read_pane)
+  grep -qF -- "$PATTERN" <<<"${snap//$'\n'/}" && exit 0
+  if [[ -n $shell_pid ]]; then
+    for inode in $(pane_listeners "$shell_pid"); do
+      [[ $baseline == *" $inode "* ]] || exit 0
+    done
+  fi
+  if [[ -n $snap && $snap == "$last" ]]; then
+    stable=$(( stable + POLL_MS ))
+    (( elapsed >= MIN_MS && stable >= SETTLE_MS )) && exit 0
+  else
+    stable=0
+  fi
+  last="$snap"
+  sleep 0.4
+  elapsed=$(( elapsed + POLL_MS ))
+done
+echo "rig: gave up waiting for $PANE — starting anyway"
+exit 0

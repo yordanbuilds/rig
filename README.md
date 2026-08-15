@@ -115,20 +115,8 @@ humming along.
 
 ### Waiting on other panes
 
-Some panes shouldn't start until something else is ready. Say so with the
-long pane form:
-
-| Key     | Meaning                                                                     |
-| ------- | --------------------------------------------------------------------------- |
-| `run`   | The command                                                                 |
-| `after` | Wait for the named pane — anywhere in the stack — to become ready           |
-| `ready` | Output that marks this pane ready; without it, ready means the command finished |
-
-#### Ready when it finishes
-
-The default: a pane is ready the moment its command exits cleanly. Here
-`sail` boots the containers once, and everything marked `"after": "sail"`
-holds for it — the workers from another tab:
+Some panes shouldn't start until something else is ready. Name the pane —
+Rig works out the rest:
 
 ```json
 {
@@ -138,6 +126,10 @@ holds for it — the workers from another tab:
     "vite": {
       "run": "sail npm run dev",
       "after": "sail"
+    },
+    "tunnel": {
+      "run": "cloudflared tunnel run widgets-dev",
+      "after": "vite"
     }
   },
   "workers": {
@@ -154,26 +146,21 @@ holds for it — the workers from another tab:
 }
 ```
 
-#### Ready when it says so
+| Key     | Meaning                                                              |
+| ------- | -------------------------------------------------------------------- |
+| `run`   | The command                                                          |
+| `after` | Wait for the named pane — anywhere in the stack — to become ready    |
+| `ready` | Optional output pattern, for the rare process that needs precision   |
 
-A dev server never exits — declare what readiness looks like instead:
+A pane counts as ready at the first of:
 
-```json
-"server": {
-  "app": {
-    "run": "php artisan serve",
-    "ready": "Server running"
-  },
-  "tunnel": {
-    "run": "cloudflared tunnel run widgets-dev",
-    "after": "app"
-  }
-}
-```
+- **its command finishes** — `sail` is ready once the containers are up
+- **it starts listening** — `vite` is ready the moment it binds its port
+- **its output settles** — whatever neither exits nor listens is ready
+  when it stops chattering
+- **two minutes pass** — a slow upstream never strands half your workspace
 
-Either way, the wait happens inside the dependent pane, where you can
-watch it — and it gives up after two minutes, so a slow dependency never
-leaves half your workspace dead.
+The wait happens inside the dependent pane, where you can watch it.
 
 ## License
 

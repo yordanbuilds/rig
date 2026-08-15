@@ -31,7 +31,7 @@ if cp=$(client_pid); then
     hyprctl dispatch focuswindow "pid:$wp" >/dev/null 2>&1 || true
   fi
 else
-  omarchy-launch-terminal-herdr >/dev/null 2>&1 || true
+  ( omarchy-launch-terminal-herdr >/dev/null 2>&1 & )
 fi
 
 for _ in $(seq 100); do

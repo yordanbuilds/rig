@@ -39,7 +39,13 @@ SHIM
 #!/usr/bin/env bash
 echo "herdr \$*" >>"$LOG"
 [[ -e "${SB}/herdr.down" ]] && exit 1
-echo '{"result":{"workspaces":[]}}'
+case "\$*" in
+  *process-info*) echo '{"result":{"process_info":{}}}' ;;
+  *"pane read"*)
+    [[ -e "${SB}/pane.churn" ]] && echo "line \$RANDOM" >>"${SB}/pane.out"
+    cat "${SB}/pane.out" 2>/dev/null || true ;;
+  *) echo '{"result":{"workspaces":[]}}' ;;
+esac
 SHIM
   cat >"$SB/bin/pgrep" <<SHIM
 #!/usr/bin/env bash
@@ -152,6 +158,21 @@ check "uninstall keeps the user's own bindings" grep -q -- '-- mine' "$SB/.confi
 check "uninstall strips menu entries" bash -c "! grep -q 'trigger.rig' '$SB/.config/omarchy/extensions/omarchy-menu.jsonc'"
 check "uninstall removes the CLI symlink" bash -c "! test -e '$SB/.local/bin/rig'"
 check "uninstall removes the plugin" logged 'omarchy plugin remove yordanbuilds.rig --yes'
+
+# --- rig-wait-ready ----------------------------------------------------------
+fresh_sandbox
+printf 'typed command\nRIG_READY\n' >"$SB/pane.out"
+out=$(RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 RIG_READY)
+check "wait-ready releases on the pattern" test -z "$out"
+fresh_sandbox
+printf 'banner\nlistening\n' >"$SB/pane.out"
+out=$(RIG_WAIT_TIMEOUT_MS=6000 RIG_WAIT_MIN_MS=400 RIG_WAIT_SETTLE_MS=400 rig-wait-ready w1:p1 RIG_READY)
+check "wait-ready settles on quiet output" test -z "$out"
+fresh_sandbox
+printf 'start\n' >"$SB/pane.out"
+touch "$SB/pane.churn"
+out=$(RIG_WAIT_TIMEOUT_MS=1200 rig-wait-ready w1:p1 RIG_READY)
+check "wait-ready gives up on churning output" grep -q "gave up" <<<"$out"
 
 echo
 echo "passed $PASS, failed $FAIL"

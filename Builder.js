@@ -83,6 +83,7 @@ function validate(stack) {
 }
 
 var TIMEOUT_MS = 120000
+var GATE = '"$HOME"/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-wait-ready'
 var MARKER = "RIG_READY"
 var TYPED_MARKER = 'RIG_"READY"'   // typed into the pane; its echo output is MARKER, the typed line never matches
 
@@ -142,8 +143,7 @@ function plan(name, stack) {
     if (pane.after) {
       var target = resolveAfter(stack, pane.after)
       var pattern = target.ready ? target.ready : MARKER
-      cmd = "herdr pane wait-output @{pane:" + target.key + "} --match " + shellQuote(pattern) +
-            " --timeout " + TIMEOUT_MS + "; " + cmd
+      cmd = GATE + " @{pane:" + target.key + "} " + shellQuote(pattern) + "; " + cmd
     }
     steps.push({ label: "start " + pane.key,
       argv: ["herdr", "pane", "run", "@{pane:" + pane.key + "}", cmd] })
