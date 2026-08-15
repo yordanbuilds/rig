@@ -46,29 +46,20 @@ your Omarchy shell.
 
 ## Installation
 
-Rig is an [Omarchy](https://omarchy.org) shell plugin. Installing it is one
-command — and it really is one command:
-
 ```bash
 omarchy plugin add https://github.com/yordanbuilds/rig.git --enable
 ```
 
-On first load, Rig sets up the rest itself: the <kbd>SUPER</kbd>+<kbd>R</kbd>
-keybinding, an entry in the Omarchy menu under *Trigger*, and the `rig`
-command on your PATH. Everything it adds is marked, visible, and yours —
-the keybinding lives in a `-- >>> rig >>>` block in your
-`~/.config/hypr/bindings.lua`, edit or delete it freely and Rig won't put
-it back. If <kbd>SUPER</kbd>+<kbd>R</kbd> is already yours, Rig leaves it
-alone and tells you, and you bind whatever you like instead:
+That's the whole thing. On first load, Rig sets itself up:
 
-```lua
-o.bind("SUPER + SHIFT + R", "Rig", "omarchy-shell shell toggle yordanbuilds.rig '{}'")
-```
+- <kbd>SUPER</kbd>+<kbd>R</kbd> opens the picker
+- **Rig** appears in the Omarchy menu, under *Trigger*
+- the `rig` command lands on your PATH
 
-Leaving is just as clean — `rig uninstall` removes the plugin and every
-trace of setup, keeping your stack files.
-
-If you're on Omarchy 4 with Herdr, you already have everything Rig needs.
+Everything setup adds is marked and yours — edit or remove any of it, and
+Rig won't put it back. If <kbd>SUPER</kbd>+<kbd>R</kbd> is already taken,
+Rig steps aside and tells you. And leaving is just as clean:
+`rig uninstall` removes every trace, keeping your stack files.
 
 ## The picker
 
