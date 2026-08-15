@@ -122,7 +122,7 @@ with the long pane form:
   "server": {
     "sail": "./vendor/bin/sail up -d",
     "vite": {
-      "run": "sail npm run dev",
+      "run": "./vendor/bin/sail npm run build",
       "after": "sail"
     },
     "tunnel": {
@@ -132,11 +132,11 @@ with the long pane form:
   },
   "workers": {
     "queues": {
-      "run": "sail artisan queue:work",
+      "run": "./vendor/bin/sail artisan queue:work",
       "after": "sail"
     },
     "scheduler": {
-      "run": "sail artisan schedule:work",
+      "run": "./vendor/bin/sail artisan schedule:work",
       "after": "sail"
     }
   },
@@ -153,7 +153,7 @@ with the long pane form:
 A pane counts as ready at the first of:
 
 - **its command finishes** — `sail` is ready once the containers are up
-- **it starts listening** — `vite` is ready the moment it binds its port
+- **it starts listening** — a dev server is ready the moment it binds its port
 - **its output settles** — a process that neither exits nor listens is
   ready when its output stops
 - **two minutes pass** — the gate times out and the pane starts anyway
