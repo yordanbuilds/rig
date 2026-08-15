@@ -2,15 +2,12 @@
 # rig-wait-ready <pane-id> <signal> — the gate behind `after`. The signal is
 # a ready-file path (touched when the awaited command finishes) or an output
 # pattern to match. Also releases when a process in the pane opens a new TCP
-# listener or when its output settles. Gives up after two minutes and lets
-# the dependent start anyway.
+# listener. Gives up after two minutes and lets the dependent start anyway.
 set -u
 
 PANE="${1:?pane id}"
 SIGNAL="${2:?ready file or pattern}"
 TIMEOUT_MS="${RIG_WAIT_TIMEOUT_MS:-120000}"
-SETTLE_MS="${RIG_WAIT_SETTLE_MS:-2000}"
-MIN_MS="${RIG_WAIT_MIN_MS:-3000}"
 GRACE_MS="${RIG_WAIT_GRACE_MS:-5000}"
 POLL_MS=400
 
@@ -56,34 +53,22 @@ command_running() {
   [[ -z $fg || $fg != "$shell_pid" ]]
 }
 
-elapsed=0 stable=0 last="" warned=0
+elapsed=0 warned=0
 while (( elapsed < TIMEOUT_MS )); do
-  snap=$(read_pane)
   if [[ $SIGNAL == /* ]]; then
     [[ -e $SIGNAL ]] && { rm -f "$SIGNAL"; exit 0; }
   else
-    grep -qF -- "$SIGNAL" <<<"${snap//$'\n'/}" && exit 0
+    grep -qF -- "$SIGNAL" < <(read_pane | tr -d '\n') && exit 0
   fi
   if [[ -n $shell_pid ]]; then
     for inode in $(pane_listeners "$shell_pid"); do
       [[ $baseline == *" $inode "* ]] || exit 0
     done
   fi
-  if command_running; then
-    if [[ -n $snap && $snap == "$last" ]]; then
-      stable=$(( stable + POLL_MS ))
-      (( elapsed >= MIN_MS && stable >= SETTLE_MS )) && exit 0
-    else
-      stable=0
-    fi
-  else
-    stable=0
-    if (( ! warned && elapsed >= GRACE_MS )); then
-      echo "rig: $PANE ended without becoming ready — holding; re-run it to release, or wait for the timeout"
-      warned=1
-    fi
+  if ! command_running && (( ! warned && elapsed >= GRACE_MS )); then
+    echo "rig: $PANE ended without becoming ready — holding; re-run it to release, or wait for the timeout"
+    warned=1
   fi
-  last="$snap"
   sleep 0.4
   elapsed=$(( elapsed + POLL_MS ))
 done

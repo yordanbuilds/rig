@@ -35,10 +35,6 @@ cat >"$FILE" <<'EOF'
     "srv": "node -e \"const i=setInterval(()=>console.log('boot'),500);setTimeout(()=>{clearInterval(i);require('http').createServer().listen(8931)},4000)\"",
     "dep2": { "run": "echo LISTEN_GATE_OPEN", "after": "srv" }
   },
-  "settle": {
-    "quiet": "tail -f /dev/null",
-    "dep3": { "run": "echo SETTLE_GATE_OPEN", "after": "quiet" }
-  },
   "terminal": null
 }
 EOF
@@ -53,7 +49,7 @@ shape=$(herdr workspace list | node -e '
     const w = JSON.parse(d).result.workspaces.find(x => x.label === process.argv[1])
     console.log(w ? w.tab_count + "/" + w.pane_count : "missing")
   })' "$STACK")
-[[ $shape == "4/7" ]] || fail "workspace shape: $shape (want 4/7)"
+[[ $shape == "3/5" ]] || fail "workspace shape: $shape (want 3/5)"
 
 sleep 7
 ws=$(herdr workspace list | node -e '
@@ -72,7 +68,6 @@ gate_open() { # <pane-label> <marker>
 }
 gate_open dep EXIT_GATE_OPEN || fail "exit gate never released"
 gate_open dep2 LISTEN_GATE_OPEN || fail "listener gate never released"
-gate_open dep3 SETTLE_GATE_OPEN || fail "settle gate never released"
 
 omarchy-shell shell call yordanbuilds.rig kill "{\"stack\":\"$STACK\"}" >/dev/null
 sleep 2

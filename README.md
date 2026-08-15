@@ -169,8 +169,7 @@ A pane counts as ready at the first of:
 
 - **its command finishes** — `sail` is ready once the containers are up
 - **it starts listening** — a dev server is ready the moment it binds its port
-- **its output settles** — a still-running process that neither exits
-  nor listens is ready when its output stops
+- **its `ready` text appears** — for anything that neither exits nor listens
 - **two minutes pass** — the gate times out and the pane starts anyway
 
 If a pane's command fails before becoming ready, panes waiting on it hold

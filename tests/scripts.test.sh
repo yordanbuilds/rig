@@ -198,10 +198,6 @@ printf 'typed command\nRIG_READY\n' >"$SB/pane.out"
 out=$(RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 RIG_READY)
 check "wait-ready releases on the pattern" test -z "$out"
 fresh_sandbox
-printf 'banner\nlistening\n' >"$SB/pane.out"
-out=$(RIG_WAIT_TIMEOUT_MS=6000 RIG_WAIT_MIN_MS=400 RIG_WAIT_SETTLE_MS=400 rig-wait-ready w1:p1 RIG_READY)
-check "wait-ready settles on quiet output" test -z "$out"
-fresh_sandbox
 printf 'start\n' >"$SB/pane.out"
 touch "$SB/pane.churn"
 out=$(RIG_WAIT_TIMEOUT_MS=1200 rig-wait-ready w1:p1 RIG_READY)
@@ -209,7 +205,7 @@ check "wait-ready gives up on churning output" grep -q "gave up" <<<"$out"
 fresh_sandbox
 printf 'boom\nerror: failed\n' >"$SB/pane.out"
 printf '{"result":{"process_info":{"foreground_processes":[{"pid":100}],"shell_pid":100}}}' >"$SB/procinfo.json"
-out=$(RIG_WAIT_TIMEOUT_MS=1500 RIG_WAIT_MIN_MS=200 RIG_WAIT_SETTLE_MS=200 RIG_WAIT_GRACE_MS=200 rig-wait-ready w1:p1 RIG_READY)
+out=$(RIG_WAIT_TIMEOUT_MS=1500 RIG_WAIT_GRACE_MS=200 rig-wait-ready w1:p1 RIG_READY)
 check "wait-ready holds when the upstream command failed" grep -q "ended without becoming ready" <<<"$out"
 fresh_sandbox
 touch "$SB/ready.signal"
