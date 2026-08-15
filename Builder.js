@@ -181,5 +181,24 @@ function parseWorkspaces(jsonText) {
   return { byLabel: byLabel, focusedActiveTabId: focusedActiveTabId }
 }
 
+function substituteTokens(argv, ctx) {
+  return argv.map(function(a) {
+    return a.replace(/@\{([^}]+)\}/g, function(_, key) {
+      if (!(key in ctx)) throw new Error("unresolved token @{" + key + "}")
+      return ctx[key]
+    })
+  })
+}
+
+function walkPath(obj, dottedPath) {
+  var parts = dottedPath.split(".")
+  var current = obj
+  for (var i = 0; i < parts.length; i++) {
+    if (current === null || current === undefined) return undefined
+    current = current[parts[i]]
+  }
+  return current
+}
+
 if (typeof module !== "undefined" && module.exports)
-  module.exports = { NAME_RE: NAME_RE, normalize: normalize, validate: validate, resolveAfter: resolveAfter, allPanes: allPanes, plan: plan, focusSteps: focusSteps, shellQuote: shellQuote, parseStacksListing: parseStacksListing, parseWorkspaces: parseWorkspaces, TIMEOUT_MS: TIMEOUT_MS, MARKER: MARKER, TYPED_MARKER: TYPED_MARKER, isAwaited: isAwaited }
+  module.exports = { NAME_RE: NAME_RE, normalize: normalize, validate: validate, resolveAfter: resolveAfter, allPanes: allPanes, plan: plan, focusSteps: focusSteps, shellQuote: shellQuote, parseStacksListing: parseStacksListing, parseWorkspaces: parseWorkspaces, TIMEOUT_MS: TIMEOUT_MS, MARKER: MARKER, TYPED_MARKER: TYPED_MARKER, isAwaited: isAwaited, substituteTokens: substituteTokens, walkPath: walkPath }

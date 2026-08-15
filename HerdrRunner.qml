@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "Builder.js" as Builder
 
 Item {
   id: root
@@ -31,15 +32,6 @@ Item {
     root.run(job.steps, job.ctx, job.onDone, job.onError)
   }
 
-  function substitute(argv) {
-    return argv.map(function(a) {
-      return a.replace(/@\{([^}]+)\}/g, function(_, key) {
-        if (!(key in root.ctx)) throw new Error("unresolved token @{" + key + "}")
-        return root.ctx[key]
-      })
-    })
-  }
-
   function next() {
     if (root.index >= root.steps.length) {
       root.busy = false
@@ -49,7 +41,7 @@ Item {
     }
     var step = root.steps[root.index]
     var argv
-    try { argv = substitute(step.argv) } catch (e) { fail(step.label + ": " + e.message); return }
+    try { argv = Builder.substituteTokens(step.argv, root.ctx) } catch (e) { fail(step.label + ": " + e.message); return }
     root.lastStdout = ""
     proc.command = argv
     proc.running = true
@@ -59,16 +51,6 @@ Item {
     root.busy = false
     if (root.errorCallback) root.errorCallback(message)
     Qt.callLater(root.startNext)
-  }
-
-  function walk(obj, dottedPath) {
-    var parts = dottedPath.split(".")
-    var current = obj
-    for (var i = 0; i < parts.length; i++) {
-      if (current === null || current === undefined) return undefined
-      current = current[parts[i]]
-    }
-    return current
   }
 
   Process {
@@ -88,7 +70,7 @@ Item {
           root.fail(step.label + ": herdr returned non-JSON: " + root.lastStdout.slice(0, 200)); return
         }
         for (var key in step.capture) {
-          var value = root.walk(parsed, step.capture[key])
+          var value = Builder.walkPath(parsed, step.capture[key])
           if (value === undefined || value === null) {
             root.fail(step.label + ": missing " + step.capture[key] + " in response"); return
           }

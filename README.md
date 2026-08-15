@@ -74,6 +74,10 @@ Omarchy menu, under *Trigger → Rig*.
 | ✓                             | This stack is running                              |
 | `＋ New`                      | Name a stack, get a working template in your editor |
 
+And because stacks are ordinary menu entries, you don't even need
+<kbd>SUPER</kbd>+<kbd>R</kbd>: open the Omarchy menu anywhere, type the
+project's name, <kbd>Enter</kbd> — rigged.
+
 ## The CLI
 
 Prefer to stay in the terminal? The menu is one face of `rig`; the terminal is the other:

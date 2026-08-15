@@ -178,3 +178,18 @@ test("parseWorkspaces: byLabel has no prototype-chain pollution", () => {
   const ws = B.parseWorkspaces(JSON.stringify({ result: { workspaces: [] } }))
   assert.equal(ws.byLabel["constructor"], undefined)
 })
+
+test("substituteTokens replaces embedded tokens from ctx", () => {
+  const out = B.substituteTokens(["herdr", "pane", "run", "@{pane:t.a}", "wait @{pane:t.b}; go"], { "pane:t.a": "w1:p1", "pane:t.b": "w1:p2" })
+  assert.deepEqual(out, ["herdr", "pane", "run", "w1:p1", "wait w1:p2; go"])
+})
+
+test("substituteTokens throws on unresolved token", () => {
+  assert.throws(() => B.substituteTokens(["@{ghost}"], {}), /unresolved token @\{ghost\}/)
+})
+
+test("walkPath resolves nested paths and tolerates gaps", () => {
+  assert.equal(B.walkPath({ result: { pane: { pane_id: "w1:p9" } } }, "result.pane.pane_id"), "w1:p9")
+  assert.equal(B.walkPath({ result: null }, "result.pane.pane_id"), undefined)
+  assert.equal(B.walkPath({}, "missing.path"), undefined)
+})

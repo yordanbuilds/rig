@@ -104,9 +104,8 @@ case "$cmd" in
     exec "$(dirname "$script")/rig-menu-sync"
     ;;
   uninstall)
-    [[ -t 0 ]] || die "uninstall is interactive — run it from a terminal"
     printf 'This removes Rig: the plugin, the SUPER+R binding block, the menu entries,\nand the CLI symlink. Your stacks in ~/.config/rig/stacks/ are kept.\nProceed? [y/N] '
-    read -r reply
+    read -r reply || die "aborted"
     [[ $reply == y || $reply == Y ]] || die "aborted"
     sed -i '/>>> rig >>>/,/<<< rig <<</d' "$HOME/.config/hypr/bindings.lua" 2>/dev/null || true
     sed -i '/>>> rig menu >>>/,/<<< rig menu <<</d; /"trigger\.rig/d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
