@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "yordanbuilds.rally",
+  "name": "Rally",
+  "version": "1.0.0",
+  "author": "Yordan Yordanov",
+  "license": "MIT",
+  "description": "Declarative project stacks for Herdr — build a whole workspace from one JSON file",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": { "overlay": "Picker.qml" }
+}
