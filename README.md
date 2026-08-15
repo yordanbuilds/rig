@@ -59,6 +59,8 @@ That's the whole thing. On first load, Rig sets itself up:
 Everything setup adds is marked and yours — edit or remove any of it, and
 Rig won't put it back.
 
+Updating? `omarchy plugin update yordanbuilds.rig && omarchy restart shell`.
+
 Leaving? `rig uninstall` removes every trace, keeping your stack files.
 
 ## The menu
