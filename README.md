@@ -24,20 +24,48 @@ Conventions over configuration: top-level keys are tabs, nested objects are
 panes, a string is a command, `null` is an empty terminal. Need a pane to
 wait for another? `{ "run": "npm run dev", "after": "sail" }`.
 
-## Status
+## Install
 
-**In development.** The design is settled — stack file contract, picker UX,
-build engine, CLI. Implementation is underway; installation instructions
-land here when it ships.
+```bash
+omarchy plugin add https://github.com/yordanbuilds/rally.git --enable
+ln -s ~/.config/omarchy/plugins/yordanbuilds.rally/bin/rally ~/.local/bin/rally   # optional CLI
+```
 
-Planned surface:
+Bind the picker to SUPER+R — add to `~/.config/hypr/bindings.lua`:
 
-- Summonable picker (SUPER+R): `● running` / `○ stopped`, Enter to build or
-  focus, `k` to kill, `n` / `＋ New` to scaffold a stack straight into your
-  editor.
-- `rally` CLI: `rally apoynt`, `rally new sell --from apoynt`, `rally list`.
-- Zero dependencies — pure Quickshell/QML/JS, installed with
-  `omarchy plugin add`.
+```lua
+o.bind("SUPER + R", "Rally", "omarchy-shell shell toggle yordanbuilds.rally '{}'")
+```
+
+Optional omarchy-menu entry — add to `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
+
+```jsonc
+{ "name": "Rally", "icon": "󰞷", "action": "omarchy-shell shell toggle yordanbuilds.rally '{}'" }
+```
+
+## Usage
+
+Stack files live in `~/.config/omarchy/stacks/<name>.json` — filename is the
+stack name and the Herdr workspace label. In the picker: Enter builds (or
+focuses, if running), Shift+Enter builds in the background, `k` kills after
+an inline confirm, `n` clones the selected stack, `＋ New` starts from the
+template. Focus lands on the last tab in the file — end with
+`"terminal": null` for an empty terminal tab.
+
+CLI: `rally`, `rally <stack>`, `rally up <stack> [-b]`, `rally kill <stack>`,
+`rally new <name> [--from <stack>]`, `rally list`.
+
+## Stack file reference
+
+- `root` — required; the working directory for every tab. `~` expands.
+- Any other top-level key is a tab: a string (one pane running that
+  command), `null` (an empty terminal), or an object of `pane-name: command`
+  entries, split evenly left-to-right.
+- Extended pane form: `{ "run": "...", "after": "<pane>", "ready": "<text>" }`.
+  `after` waits for the named pane (anywhere in the stack) to be ready.
+  A pane is ready when its command exits successfully — or, if it declares
+  `ready`, when that text appears in its output. Gates time out after 120s
+  and start the pane anyway.
 
 ## License
 
