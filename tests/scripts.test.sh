@@ -99,7 +99,7 @@ rig up 2>/dev/null; rc=$?
 check "up without a stack exits nonzero" test "$rc" -ne 0
 
 out=$(RIG_CLI_WAIT=1 rig acme)
-check "waited up prints the outcome" test "$out" = "acme is up"
+check "waited up prints the outcome" grep -q "acme is up" <<<"$out"
 printf 'err\nno running Herdr server — start herdr first' >"$SB/outcome.txt"
 err=$(RIG_CLI_WAIT=1 rig acme 2>&1); rc=$?
 check "waited up fails with the plugin's message" grep -q "no running Herdr server" <<<"$err"

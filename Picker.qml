@@ -156,8 +156,13 @@ Item {
         return { name: entry.name, running: !!ws, workspace_id: ws ? ws.id : null }
       })
       result.sort(function(a, b) { return a.name < b.name ? -1 : 1 })
-      var json = JSON.stringify(result)
-      prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rig-list", json, out] }],
+      var body
+      if (arg.format === "json") body = JSON.stringify(result)
+      else if (result.length === 0) body = "no stacks yet — rig new <name>"
+      else body = result.map(function(r) {
+        return r.running ? "\x1b[1;32m●\x1b[0m " + r.name : "\x1b[2m○\x1b[0m " + r.name
+      }).join("\n")
+      prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rig-list", body, out] }],
         {}, function() {}, function(msg) { root.notify("Rig", root.herdrError(msg)) })
     }, function(msg) {
       prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rig-list",

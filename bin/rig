@@ -16,7 +16,7 @@ Usage:
   rig up <stack> [-b]       same; -b/--background builds without focusing
   rig kill <stack>          close the stack's workspace
   rig new <name> [--from <stack>]   create a stack file and open it in your editor
-  rig list                  JSON listing of stacks and their running state
+  rig list [--json]         your stacks and what's running
   rig sync                  refresh Rig's entries in the Omarchy menu
   rig setup                 re-run first-load setup (binding, menu, symlink)
   rig uninstall             remove Rig and everything setup added
@@ -49,7 +49,18 @@ call_wait() { # <method> <json-arg>
   status=$(head -1 "$result")
   msg=$(tail -n +2 "$result")
   rm -f "$result"
-  if [[ $status == ok ]]; then echo "$msg"; else die "$msg"; fi
+  if [[ $status == ok ]]; then printf '\033[1;32m✓\033[0m %s\n' "$msg"; else die "$msg"; fi
+}
+
+confirm() { # <prompt> — gum when interactive, plain read otherwise
+  if command -v gum >/dev/null 2>&1 && [[ -t 0 ]]; then
+    gum confirm "$1"
+  else
+    printf '%s [y/N] ' "$1"
+    local r
+    read -r r || return 1
+    [[ $r == y || $r == Y ]]
+  fi
 }
 
 cmd="${1:-}"
@@ -94,10 +105,12 @@ case "$cmd" in
     fi
     ;;
   list)
+    fmt=text
+    [[ ${1:-} == --json ]] && fmt=json
     out=$(mktemp)
     trap 'rm -f "$out"' EXIT
     : > "$out"
-    call list "{\"out\":\"$out\"}" >/dev/null
+    call list "{\"out\":\"$out\",\"format\":\"$fmt\"}" >/dev/null
     for _ in $(seq 40); do [[ -s "$out" ]] && break; sleep 0.05; done
     [[ -s "$out" ]] || die "no response from the shell plugin"
     if grep -q '^{"error":' "$out"; then
@@ -128,11 +141,9 @@ case "$cmd" in
     exec "$(dirname "$script")/rig-menu-sync"
     ;;
   uninstall)
-    printf 'This removes Rig: the plugin, the SUPER+R binding block, the menu entries,\nand the CLI symlink.\nProceed? [y/N] '
-    read -r reply || die "aborted"
-    [[ $reply == y || $reply == Y ]] || die "aborted"
-    printf 'Also delete your stack files in ~/.config/rig/stacks/? [y/N] '
-    read -r stacks_reply || stacks_reply=n
+    echo "This removes Rig: the plugin, the SUPER+R binding, the menu entries, and the CLI."
+    confirm "Remove Rig?" || die "aborted"
+    if confirm "Also delete your stack files in ~/.config/rig/stacks/?"; then stacks_reply=y; else stacks_reply=n; fi
     sed -i '/>>> rig >>>/,/<<< rig <<</d' "$HOME/.config/hypr/bindings.lua" 2>/dev/null || true
     sed -i '/>>> rig menu >>>/,/<<< rig menu <<</d; /"trigger\.rig/d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
     rm -f "$HOME/.local/bin/rig" "$HOME/.config/rig/.setup-done"
