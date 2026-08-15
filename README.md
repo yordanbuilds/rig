@@ -158,6 +158,16 @@ A pane counts as ready at the first of:
   ready when its output stops
 - **two minutes pass** — the gate times out and the pane starts anyway
 
+When the heuristics guess wrong for a process, `ready` pins the moment
+exactly — dependents release as soon as the text appears in its output:
+
+```json
+"stripe": {
+  "run": "stripe listen --forward-to localhost:8000",
+  "ready": "Ready!"
+}
+```
+
 The wait happens inside the dependent pane, where you can watch it.
 
 ## License
