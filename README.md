@@ -65,8 +65,7 @@ Leaving? `rig uninstall` removes every trace, keeping your stack files.
 
 ## The menu
 
-Your stacks live where everything else on your desktop lives — in the
-Omarchy menu, under _Trigger_.
+Your stacks are entries in the Omarchy menu, under _Trigger_.
 
 | In the menu                   | What happens                                                 |
 | ----------------------------- | ------------------------------------------------------------ |
@@ -76,13 +75,13 @@ Omarchy menu, under _Trigger_.
 | ✓                             | This stack is running                                        |
 | `＋ New`                      | Name a stack, get a working template in your editor          |
 
-And because stacks are ordinary menu entries, you don't even need
-<kbd>SUPER</kbd>+<kbd>R</kbd>: open the Omarchy menu anywhere, type the
-project's name, <kbd>Enter</kbd> — rigged.
+Because stacks are ordinary menu entries, they are searchable from the
+Omarchy menu itself: open it anywhere, type the project's name, and press
+<kbd>Enter</kbd>.
 
 ## The CLI
 
-The menu is one face of `rig`; the terminal is the other:
+Everything the menu does is also a command:
 
 ```text
 rig                           open the stack menu
@@ -94,8 +93,8 @@ rig list                      JSON status of every stack, for scripting
 rig sync                      put hand-dropped stack files on the menu
 ```
 
-Everything is idempotent. `rig acme` on a stack that's already running
-simply takes you there — run it as many times as you like.
+Every command is idempotent — `rig acme` on a running stack simply takes
+you there.
 
 ## Stack files
 
@@ -110,13 +109,12 @@ required key. Every other key is a tab, created in file order:
 | `"workers": { … }`    | One pane per entry, split evenly |
 
 After a build, focus lands on the last tab in the file — end with
-`"terminal": null` to start in a fresh shell, everything else already
-humming along.
+`"terminal": null` to start in an empty shell.
 
 ### Waiting on other panes
 
-Some panes shouldn't start until something else is ready. Name the pane —
-Rig works out the rest:
+Some panes shouldn't start until something else is ready. Declare that
+with the long pane form:
 
 ```json
 {
@@ -156,9 +154,9 @@ A pane counts as ready at the first of:
 
 - **its command finishes** — `sail` is ready once the containers are up
 - **it starts listening** — `vite` is ready the moment it binds its port
-- **its output settles** — whatever neither exits nor listens is ready
-  when it stops chattering
-- **two minutes pass** — a slow upstream never strands half your workspace
+- **its output settles** — a process that neither exits nor listens is
+  ready when its output stops
+- **two minutes pass** — the gate times out and the pane starts anyway
 
 The wait happens inside the dependent pane, where you can watch it.
 
