@@ -45,7 +45,16 @@ shell_pid=$(herdr pane process-info --pane "$PANE" 2>/dev/null |
 baseline=""
 [[ -n $shell_pid ]] && baseline=" $(pane_listeners "$shell_pid") "
 
-elapsed=0 stable=0 last=""
+command_running() {
+  # True when something other than the pane's shell holds the foreground.
+  [[ -z $shell_pid ]] && return 0
+  local fg
+  fg=$(herdr pane process-info --pane "$PANE" 2>/dev/null |
+    grep -o '"pid":[0-9]*' | head -1 | grep -o '[0-9]*$' || true)
+  [[ -z $fg || $fg != "$shell_pid" ]]
+}
+
+elapsed=0 stable=0 last="" warned=0
 while (( elapsed < TIMEOUT_MS )); do
   snap=$(read_pane)
   grep -qF -- "$PATTERN" <<<"${snap//$'\n'/}" && exit 0
@@ -54,11 +63,19 @@ while (( elapsed < TIMEOUT_MS )); do
       [[ $baseline == *" $inode "* ]] || exit 0
     done
   fi
-  if [[ -n $snap && $snap == "$last" ]]; then
-    stable=$(( stable + POLL_MS ))
-    (( elapsed >= MIN_MS && stable >= SETTLE_MS )) && exit 0
+  if command_running; then
+    if [[ -n $snap && $snap == "$last" ]]; then
+      stable=$(( stable + POLL_MS ))
+      (( elapsed >= MIN_MS && stable >= SETTLE_MS )) && exit 0
+    else
+      stable=0
+    fi
   else
     stable=0
+    if (( ! warned )); then
+      echo "rig: $PANE ended without becoming ready — holding; re-run it to release, or wait for the timeout"
+      warned=1
+    fi
   fi
   last="$snap"
   sleep 0.4
