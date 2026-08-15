@@ -118,6 +118,31 @@ Item {
 
   function kill(argJson) { return killStack(argJson) }
 
+  function list(argJson) {
+    var arg
+    try { arg = JSON.parse(argJson || "{}") } catch (e) { return "error: bad argument JSON" }
+    var out = arg.out
+    if (!out || out.indexOf("/") !== 0) return "error: list needs an absolute \"out\" path"
+    prepRunner.run([
+      { label: "list stacks", argv: ["bash", "-c",
+        'for f in "$HOME"/.config/omarchy/stacks/*.json; do [ -e "$f" ] || continue; printf "%s\\t%s\\n" "$(basename "$f" .json)" "$(base64 -w0 "$f")"; done'],
+        collect: "listing" },
+      { label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }
+    ], {}, function(ctx) {
+      var workspaces = { byLabel: {} }
+      try { workspaces = Builder.parseWorkspaces(ctx.wsjson) } catch (e) { }
+      var result = Builder.parseStacksListing(ctx.listing || "", Qt.atob).map(function(entry) {
+        var ws = workspaces.byLabel[entry.name]
+        return { name: entry.name, running: !!ws, workspace_id: ws ? ws.id : null }
+      })
+      result.sort(function(a, b) { return a.name < b.name ? -1 : 1 })
+      var json = JSON.stringify(result)
+      prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rally-list", json, out] }],
+        {}, function() {}, function(msg) { root.notify("Rally", msg) })
+    }, function(msg) { root.notify("Rally", msg) })
+    return "listing"
+  }
+
   property var rows: []
   property int selectedIndex: 0
   property string uiState: "list"

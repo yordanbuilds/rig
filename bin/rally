@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# rally — CLI face of the Rally Omarchy plugin (yordanbuilds.rally).
+# Pure forwarder: every command is one omarchy-shell IPC call; all logic
+# lives in the plugin running inside omarchy-shell.
+set -euo pipefail
+
+ID="yordanbuilds.rally"
+
+die() { echo "rally: $*" >&2; exit 1; }
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  rally                       open the picker
+  rally <stack>               build the stack (or focus it if running)
+  rally up <stack> [-b]       same; -b/--background builds without focusing
+  rally kill <stack>          close the stack's workspace
+  rally new <name> [--from <stack>]   create a stack file and open it in your editor
+  rally list                  JSON listing of stacks and their running state
+USAGE
+}
+
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+call() { # <method> <json-arg>
+  local out
+  out=$(omarchy-shell shell call "$ID" "$1" "$2") || die "omarchy-shell call failed — is the shell running?"
+  [[ "$out" == error:* ]] && die "${out#error: }"
+  printf '%s\n' "$out"
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  "") exec omarchy-shell shell toggle "$ID" '{}' ;;
+  -h|--help) usage; exit 0 ;;
+  up|kill|new|list) shift ;;
+  *) set -- "$cmd"; cmd=up ;;   # sugar: rally <stack>
+esac
+
+case "$cmd" in
+  up)
+    name="" background=false
+    for arg in "$@"; do
+      case "$arg" in
+        -b|--background) background=true ;;
+        -*) die "unknown flag: $arg" ;;
+        *) name="$arg" ;;
+      esac
+    done
+    [[ -n "$name" ]] || { usage; exit 1; }
+    call up "{\"stack\":\"$(json_escape "$name")\",\"background\":$background}"
+    ;;
+  kill)
+    [[ $# -ge 1 ]] || { usage; exit 1; }
+    call kill "{\"stack\":\"$(json_escape "$1")\"}"
+    ;;
+  new)
+    name="" from=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --from) from="${2:?--from needs a stack name}"; shift 2 ;;
+        -*) die "unknown flag: $1" ;;
+        *) name="$1"; shift ;;
+      esac
+    done
+    [[ -n "$name" ]] || { usage; exit 1; }
+    if [[ -n "$from" ]]; then
+      call create "{\"name\":\"$(json_escape "$name")\",\"from\":\"$(json_escape "$from")\"}"
+    else
+      call create "{\"name\":\"$(json_escape "$name")\"}"
+    fi
+    ;;
+  list)
+    out=$(mktemp)
+    trap 'rm -f "$out"' EXIT
+    : > "$out"
+    call list "{\"out\":\"$out\"}" >/dev/null
+    for _ in $(seq 40); do [[ -s "$out" ]] && break; sleep 0.05; done
+    [[ -s "$out" ]] || die "no response from the shell plugin"
+    cat "$out"; echo
+    ;;
+esac
