@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# rig-setup — one-time omakase setup, run by the plugin on first load.
+# Installs the CLI symlink, the SUPER+R keybinding, and the Omarchy menu
+# entry. Idempotent via ~/.config/rig/.setup-done; --force re-runs it.
+# Everything it writes is marked and reversible (see `rig uninstall`).
+set -euo pipefail
+
+SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+PLUGIN_DIR="$(dirname "$(dirname "$SCRIPT")")"
+FLAG="$HOME/.config/rig/.setup-done"
+BINDINGS="$HOME/.config/hypr/bindings.lua"
+MENU="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
+MENU_ENTRY='  "trigger.rig": { "icon": "󰞷", "label": "Rig", "aliases": ["rig", "stacks"], "action": "omarchy-shell shell toggle yordanbuilds.rig '"'"'{}'"'"'" },'
+
+[[ -e $FLAG && ${1:-} != --force ]] && exit 0
+
+notify() { command -v omarchy-notification-send >/dev/null 2>&1 && omarchy-notification-send "$1" "$2" || true; }
+
+mkdir -p "$HOME/.config/rig/stacks"
+
+# --- CLI symlink -------------------------------------------------------------
+mkdir -p "$HOME/.local/bin"
+[[ -e "$HOME/.local/bin/rig" ]] || ln -s "$PLUGIN_DIR/bin/rig" "$HOME/.local/bin/rig"
+
+# --- Keybinding: SUPER+R, only if genuinely free -----------------------------
+bind_note="SUPER+R opens the picker"
+if ! grep -q '>>> rig >>>' "$BINDINGS" 2>/dev/null; then
+  taken=$(hyprctl -j binds 2>/dev/null |
+    jq '[.[] | select(.modmask == 64 and (.key | ascii_upcase == "R"))] | length' 2>/dev/null || echo 0)
+  if [[ ${taken:-0} -gt 0 ]]; then
+    bind_note="SUPER+R was taken — bind the picker yourself (see README)"
+  else
+    cat >>"$BINDINGS" <<'EOF'
+
+-- >>> rig >>>  Added once by Rig setup — yours to edit or remove.
+o.bind("SUPER + R", "Rig", "omarchy-shell shell toggle yordanbuilds.rig '{}'")
+-- <<< rig <<<
+EOF
+  fi
+fi
+
+# --- Omarchy menu entry: Trigger → Rig ---------------------------------------
+if ! grep -q '"trigger\.rig"' "$MENU" 2>/dev/null; then
+  if [[ ! -e $MENU ]]; then
+    mkdir -p "$(dirname "$MENU")"
+    printf '{\n%s\n}\n' "$MENU_ENTRY" >"$MENU"
+  else
+    # Insert before the file's closing brace. If the preceding entry lacks a
+    # trailing comma, add one — the menu's JSONC parser tolerates trailing
+    # commas but not missing ones.
+    tmp="$(mktemp)"
+    awk -v entry="$MENU_ENTRY" '
+      { lines[NR] = $0 }
+      END {
+        last = 0
+        for (i = 1; i <= NR; i++) if (lines[i] ~ /^[[:space:]]*}[[:space:]]*$/) last = i
+        if (last == 0) exit 3
+        for (j = last - 1; j >= 1; j--) {
+          t = lines[j]
+          sub(/[[:space:]]+$/, "", t)
+          if (t == "" || t ~ /^[[:space:]]*\/\//) continue
+          if (t !~ /[,{[]$/) lines[j] = lines[j] ","
+          break
+        }
+        for (i = 1; i <= NR; i++) {
+          if (i == last) print entry
+          print lines[i]
+        }
+      }
+    ' "$MENU" >"$tmp" && mv "$tmp" "$MENU" || { rm -f "$tmp"; notify "Rig" "Could not update the Omarchy menu — add trigger.rig yourself (see README)"; }
+  fi
+fi
+
+touch "$FLAG"
+notify "Rig is ready" "$bind_note · rig CLI · Omarchy menu → Trigger → Rig"

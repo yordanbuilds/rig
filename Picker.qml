@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import qs.Commons
@@ -49,6 +50,14 @@ Item {
 
   HerdrRunner { id: runner }
   HerdrRunner { id: prepRunner }
+
+  // First-load omakase setup: CLI symlink, SUPER+R binding, menu entry.
+  // rig-setup exits immediately once ~/.config/rig/.setup-done exists.
+  Process {
+    id: setupProcess
+    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-setup"]
+  }
+  Component.onCompleted: setupProcess.running = true
 
   function up(argJson) {
     var arg

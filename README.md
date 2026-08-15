@@ -46,38 +46,29 @@ your Omarchy shell.
 
 ## Installation
 
-Rig is an [Omarchy](https://omarchy.org) shell plugin, so installing it
-is one command:
+Rig is an [Omarchy](https://omarchy.org) shell plugin. Installing it is one
+command — and it really is one command:
 
 ```bash
 omarchy plugin add https://github.com/yordanbuilds/rig.git --enable
 ```
 
-Want the `rig` command too? One symlink:
-
-```bash
-ln -s ~/.config/omarchy/plugins/yordanbuilds.rig/bin/rig ~/.local/bin/rig
-```
-
-Give the picker a home in `~/.config/hypr/bindings.lua`:
+On first load, Rig sets up the rest itself: the <kbd>SUPER</kbd>+<kbd>R</kbd>
+keybinding, an entry in the Omarchy menu under *Trigger*, and the `rig`
+command on your PATH. Everything it adds is marked, visible, and yours —
+the keybinding lives in a `-- >>> rig >>>` block in your
+`~/.config/hypr/bindings.lua`, edit or delete it freely and Rig won't put
+it back. If <kbd>SUPER</kbd>+<kbd>R</kbd> is already yours, Rig leaves it
+alone and tells you, and you bind whatever you like instead:
 
 ```lua
-o.bind("SUPER + R", "Rig", "omarchy-shell shell toggle yordanbuilds.rig '{}'")
+o.bind("SUPER + SHIFT + R", "Rig", "omarchy-shell shell toggle yordanbuilds.rig '{}'")
 ```
 
-And if you'd like it in the Omarchy menu, add this to
-`~/.config/omarchy/extensions/omarchy-menu.jsonc`:
+Leaving is just as clean — `rig uninstall` removes the plugin and every
+trace of setup, keeping your stack files.
 
-```jsonc
-{
-  "name": "Rig",
-  "icon": "󰞷",
-  "action": "omarchy-shell shell toggle yordanbuilds.rig '{}'",
-}
-```
-
-That's it. If you're on Omarchy 4 with Herdr, you already have everything
-Rig needs.
+If you're on Omarchy 4 with Herdr, you already have everything Rig needs.
 
 ## The picker
 

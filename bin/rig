@@ -17,6 +17,8 @@ Usage:
   rig kill <stack>          close the stack's workspace
   rig new <name> [--from <stack>]   create a stack file and open it in your editor
   rig list                  JSON listing of stacks and their running state
+  rig setup                 re-run first-load setup (binding, menu, symlink)
+  rig uninstall             remove Rig and everything setup added
 USAGE
 }
 
@@ -33,7 +35,7 @@ cmd="${1:-}"
 case "$cmd" in
   "") exec omarchy-shell shell toggle "$ID" '{}' ;;
   -h|--help) usage; exit 0 ;;
-  up|kill|new|list) shift ;;
+  up|kill|new|list|setup|uninstall) shift ;;
   *) cmd=up ;;   # sugar: rig <stack>
 esac
 
@@ -78,5 +80,19 @@ case "$cmd" in
     for _ in $(seq 40); do [[ -s "$out" ]] && break; sleep 0.05; done
     [[ -s "$out" ]] || die "no response from the shell plugin"
     cat "$out"; echo
+    ;;
+  setup)
+    script="$(readlink -f "${BASH_SOURCE[0]}")"
+    exec "$(dirname "$script")/rig-setup" --force
+    ;;
+  uninstall)
+    [[ -t 0 ]] || die "uninstall is interactive — run it from a terminal"
+    printf 'This removes Rig: the plugin, the SUPER+R binding block, the menu entry,\nand the CLI symlink. Your stacks in ~/.config/rig/stacks/ are kept.\nProceed? [y/N] '
+    read -r reply
+    [[ $reply == y || $reply == Y ]] || die "aborted"
+    sed -i '/>>> rig >>>/,/<<< rig <<</d' "$HOME/.config/hypr/bindings.lua" 2>/dev/null || true
+    sed -i '/"trigger\.rig"/d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
+    rm -f "$HOME/.local/bin/rig" "$HOME/.config/rig/.setup-done"
+    exec omarchy plugin remove yordanbuilds.rig --yes
     ;;
 esac
