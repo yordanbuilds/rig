@@ -97,7 +97,9 @@ rig sync                      put hand-dropped stack files on the menu
 ```
 
 Commands are safe to repeat — `rig acme` on a running stack doesn't
-build a second one, it takes you there.
+build a second one, it takes you there. The CLI waits and reports the
+outcome in the terminal; menu-launched actions report through
+notifications instead.
 
 ## Stack files
 

@@ -51,7 +51,16 @@ Item {
   Component.onCompleted: setupProcess.running = true
 
   function herdrError(msg) {
-    return /connect|connection refused|refused|socket|not running/i.test(msg) ? "no running Herdr server — start herdr first" : msg
+    return /connect|refused|socket|not.?running|no herdr/i.test(msg) ? "no running Herdr server — start herdr first" : msg
+  }
+
+  function report(out, ok, body) {
+    if (out) {
+      prepRunner.run([{ label: "write result", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rig-out",
+        (ok ? "ok" : "err") + "\n" + body, out] }], {}, function() {}, function() {})
+    } else if (!ok) {
+      root.notify("Rig", body)
+    }
   }
 
   function up(argJson) {
@@ -60,6 +69,7 @@ Item {
     var name = arg.stack
     if (!name || !Builder.NAME_RE.test(name)) return "error: invalid stack name"
     var background = arg.background === true
+    var out = arg.out || null
     var path = root.stacksDir + "/" + name + ".json"
     var prep = [
       { label: "read " + name + ".json", argv: ["cat", path], collect: "raw" },
@@ -72,23 +82,25 @@ Item {
         stack = Builder.normalize(JSON.parse(ctx.raw), root.homeDir)
         errors = Builder.validate(stack)
         workspaces = Builder.parseWorkspaces(ctx.wsjson)
-      } catch (e) { root.notify("Rig: " + name, String(e.message || e)); return }
-      if (errors.length) { root.notify("Rig: " + name + " is invalid", errors[0]); return }
+      } catch (e) { root.report(out, false, name + ": " + String(e.message || e)); return }
+      if (errors.length) { root.report(out, false, name + " is invalid — " + errors[0]); return }
       var existing = workspaces.byLabel[name]
       if (existing) {
         if (!background) runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", existing.id] }],
-          {}, function() {}, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
+          {}, function() { root.report(out, true, name + " is already up — took you there") },
+          function(msg) { root.report(out, false, name + ": " + root.herdrError(msg)) })
+        else root.report(out, true, name + " is already up")
         return
       }
-      root.executePlan(name, stack, background, workspaces.focusedActiveTabId)
+      root.executePlan(name, stack, background, workspaces.focusedActiveTabId, out)
     }, function(msg) {
-      if (msg.indexOf("read ") === 0) root.notify("Rig", "no stack named \"" + name + "\" in " + root.stacksDir)
-      else root.notify("Rig: " + name, root.herdrError(msg))
+      if (msg.indexOf("read ") === 0) root.report(out, false, "no stack named \"" + name + "\" in " + root.stacksDir)
+      else root.report(out, false, name + ": " + root.herdrError(msg))
     })
     return "building " + name
   }
 
-  function executePlan(name, stack, background, previousTabId) {
+  function executePlan(name, stack, background, previousTabId, out) {
     var planObj = Builder.plan(name, stack)
     var steps = planObj.steps.slice()
     if (!background) steps = steps.concat(Builder.focusSteps(planObj))
@@ -100,8 +112,9 @@ Item {
           { label: "restore focus", argv: ["herdr", "tab", "focus", previousTabId] }
         ], {}, function() {}, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
       }
+      root.report(out, true, name + " is up")
     }, function(msg) {
-      root.notify("Rig: " + name + " build failed", root.herdrError(msg))
+      root.report(out, false, name + " build failed — " + root.herdrError(msg))
     })
   }
 
@@ -110,14 +123,16 @@ Item {
     try { arg = JSON.parse(argJson || "{}") } catch (e) { return "error: bad argument JSON" }
     var name = arg.stack
     if (!name) return "error: missing stack name"
+    var out = arg.out || null
     prepRunner.run([{ label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }],
       {}, function(ctx) {
         var existing
-        try { existing = Builder.parseWorkspaces(ctx.wsjson).byLabel[name] } catch (e) { root.notify("Rig", String(e)); return }
-        if (!existing) { root.notify("Rig", "\"" + name + "\" is not running"); return }
+        try { existing = Builder.parseWorkspaces(ctx.wsjson).byLabel[name] } catch (e) { root.report(out, false, String(e)); return }
+        if (!existing) { root.report(out, false, "\"" + name + "\" is not running"); return }
         runner.run([{ label: "close workspace", argv: ["herdr", "workspace", "close", existing.id] }],
-          {}, function() {}, function(msg) { root.notify("Rig: " + name, root.herdrError(msg)) })
-      }, function(msg) { root.notify("Rig", root.herdrError(msg)) })
+          {}, function() { root.report(out, true, name + " closed") },
+          function(msg) { root.report(out, false, name + ": " + root.herdrError(msg)) })
+      }, function(msg) { root.report(out, false, root.herdrError(msg)) })
     return "killing " + name
   }
 
@@ -144,7 +159,10 @@ Item {
       var json = JSON.stringify(result)
       prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rig-list", json, out] }],
         {}, function() {}, function(msg) { root.notify("Rig", root.herdrError(msg)) })
-    }, function(msg) { root.notify("Rig", root.herdrError(msg)) })
+    }, function(msg) {
+      prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rig-list",
+        JSON.stringify({ error: root.herdrError(msg) }), out] }], {}, function() {}, function() {})
+    })
     return "listing"
   }
 

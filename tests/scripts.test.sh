@@ -24,8 +24,16 @@ fresh_sandbox() {
 echo "omarchy-shell \$*" >>"$LOG"
 if [[ \${2:-} == call && \${4:-} == list ]]; then
   out=\$(grep -o '"out":"[^"]*"' <<<"\$5" | cut -d'"' -f4)
-  [[ -n \$out ]] && printf '[]' >"\$out"
+  if [[ -n \$out ]]; then
+    cat "${SB}/list.out" 2>/dev/null >"\$out" || printf '[]' >"\$out"
+  fi
   echo listing
+elif [[ \${2:-} == call && ( \${4:-} == up || \${4:-} == kill ) ]]; then
+  out=\$(grep -o '"out":"[^"]*"' <<<"\$5" | cut -d'"' -f4)
+  if [[ -n \$out ]]; then
+    cat "${SB}/outcome.txt" 2>/dev/null >"\$out" || printf 'ok\nacme is up' >"\$out"
+  fi
+  echo ok
 else
   echo ok
 fi
@@ -89,6 +97,19 @@ out=$(rig list)
 check "list round-trips the out file" test "$out" = "[]"
 rig up 2>/dev/null; rc=$?
 check "up without a stack exits nonzero" test "$rc" -ne 0
+
+out=$(RIG_CLI_WAIT=1 rig acme)
+check "waited up prints the outcome" test "$out" = "acme is up"
+printf 'err\nno running Herdr server — start herdr first' >"$SB/outcome.txt"
+err=$(RIG_CLI_WAIT=1 rig acme 2>&1); rc=$?
+check "waited up fails with the plugin's message" grep -q "no running Herdr server" <<<"$err"
+check "waited up exits nonzero on failure" test "$rc" -ne 0
+rm -f "$SB/outcome.txt"
+printf '{"error":"no running Herdr server — start herdr first"}' >"$SB/list.out"
+err=$(rig list 2>&1); rc=$?
+check "list surfaces plugin errors in the terminal" grep -q "no running Herdr server" <<<"$err"
+check "list exits nonzero on error" test "$rc" -ne 0
+rm -f "$SB/list.out"
 
 # --- rig-menu-sync -----------------------------------------------------------
 fresh_sandbox

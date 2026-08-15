@@ -32,6 +32,26 @@ call() { # <method> <json-arg>
   printf '%s\n' "$out"
 }
 
+# With a terminal, wait for the outcome and print it; menu-spawned runs
+# (no tty) stay fire-and-forget and report through notifications.
+call_wait() { # <method> <json-arg>
+  if [[ ! -t 2 && -z ${RIG_CLI_WAIT:-} ]]; then
+    call "$1" "$2"
+    return
+  fi
+  local result arg status
+  result=$(mktemp)
+  : >"$result"
+  arg="${2%\}},\"out\":\"$result\"}"
+  call "$1" "$arg" >/dev/null
+  for _ in $(seq 6000); do [[ -s $result ]] && break; sleep 0.1; done
+  [[ -s $result ]] || { rm -f "$result"; die "no response from the shell plugin"; }
+  status=$(head -1 "$result")
+  msg=$(tail -n +2 "$result")
+  rm -f "$result"
+  if [[ $status == ok ]]; then echo "$msg"; else die "$msg"; fi
+}
+
 cmd="${1:-}"
 case "$cmd" in
   "") exec omarchy-shell shell toggle omarchy.menu '{"menu":"trigger.rig"}' ;;
@@ -51,11 +71,11 @@ case "$cmd" in
       esac
     done
     [[ -n "$name" ]] || { usage; exit 1; }
-    call up "{\"stack\":\"$(json_escape "$name")\",\"background\":$background}"
+    call_wait up "{\"stack\":\"$(json_escape "$name")\",\"background\":$background}"
     ;;
   kill)
     [[ $# -ge 1 ]] || { usage; exit 1; }
-    call kill "{\"stack\":\"$(json_escape "$1")\"}"
+    call_wait kill "{\"stack\":\"$(json_escape "$1")\"}"
     ;;
   new)
     name="" from=""
@@ -80,6 +100,10 @@ case "$cmd" in
     call list "{\"out\":\"$out\"}" >/dev/null
     for _ in $(seq 40); do [[ -s "$out" ]] && break; sleep 0.05; done
     [[ -s "$out" ]] || die "no response from the shell plugin"
+    if grep -q '^{"error":' "$out"; then
+      msg=$(grep -o '"error":"[^"]*"' "$out" | head -1 | cut -d'"' -f4)
+      die "$msg"
+    fi
     cat "$out"; echo
     ;;
   sync)
