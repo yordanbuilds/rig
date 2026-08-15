@@ -104,12 +104,15 @@ case "$cmd" in
     exec "$(dirname "$script")/rig-menu-sync"
     ;;
   uninstall)
-    printf 'This removes Rig: the plugin, the SUPER+R binding block, the menu entries,\nand the CLI symlink. Your stacks in ~/.config/rig/stacks/ are kept.\nProceed? [y/N] '
+    printf 'This removes Rig: the plugin, the SUPER+R binding block, the menu entries,\nand the CLI symlink.\nProceed? [y/N] '
     read -r reply || die "aborted"
     [[ $reply == y || $reply == Y ]] || die "aborted"
+    printf 'Also delete your stack files in ~/.config/rig/stacks/? [y/N] '
+    read -r stacks_reply || stacks_reply=n
     sed -i '/>>> rig >>>/,/<<< rig <<</d' "$HOME/.config/hypr/bindings.lua" 2>/dev/null || true
     sed -i '/>>> rig menu >>>/,/<<< rig menu <<</d; /"trigger\.rig/d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
     rm -f "$HOME/.local/bin/rig" "$HOME/.config/rig/.setup-done"
+    [[ $stacks_reply == y || $stacks_reply == Y ]] && rm -rf "$HOME/.config/rig"
     exec omarchy plugin remove yordanbuilds.rig --yes
     ;;
 esac

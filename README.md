@@ -61,9 +61,12 @@ Rig won't put it back.
 
 Updating? `omarchy plugin update yordanbuilds.rig && omarchy restart shell`.
 
-Leaving? `rig uninstall` removes every trace, keeping your stack files.
+Leaving? `rig uninstall` removes everything setup added and asks
+whether your stack files should go too.
 
-## The menu
+## Usage
+
+### The menu
 
 Your stacks are entries in the Omarchy menu, under _Trigger_.
 
@@ -79,7 +82,7 @@ Because stacks are ordinary menu entries, they are searchable from the
 Omarchy menu itself: open it anywhere, type the project's name, and press
 <kbd>Enter</kbd>.
 
-## The CLI
+### The CLI
 
 Everything the menu does is also a command:
 

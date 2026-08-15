@@ -152,12 +152,24 @@ printf -- '-- mine\n-- >>> rig >>>\nbind\n-- <<< rig <<<\n' >"$SB/.config/hypr/b
 printf '{\n  "trigger.rig": {},\n}\n' >"$SB/.config/omarchy/extensions/omarchy-menu.jsonc"
 ln -s /dev/null "$SB/.local/bin/rig"
 touch "$SB/.config/rig/.setup-done"
-printf 'y\n' | rig uninstall >/dev/null 2>&1
+printf '{ "root": "/r", "t": "x" }' >"$SB/.config/rig/stacks/keepme.json"
+printf 'y\nn\n' | rig uninstall >/dev/null 2>&1
 check "uninstall strips the bind block" bash -c "! grep -q 'rig >>>' '$SB/.config/hypr/bindings.lua'"
+check "uninstall keeps stacks when declined" test -e "$SB/.config/rig/stacks/keepme.json"
 check "uninstall keeps the user's own bindings" grep -q -- '-- mine' "$SB/.config/hypr/bindings.lua"
 check "uninstall strips menu entries" bash -c "! grep -q 'trigger.rig' '$SB/.config/omarchy/extensions/omarchy-menu.jsonc'"
 check "uninstall removes the CLI symlink" bash -c "! test -e '$SB/.local/bin/rig'"
 check "uninstall removes the plugin" logged 'omarchy plugin remove yordanbuilds.rig --yes'
+
+fresh_sandbox
+cat >"$SB/bin/omarchy" <<SHIM
+#!/usr/bin/env bash
+echo "omarchy \$*" >>"$LOG"
+SHIM
+chmod +x "$SB/bin/omarchy"
+printf '{ "root": "/r", "t": "x" }' >"$SB/.config/rig/stacks/goner.json"
+printf 'y\ny\n' | rig uninstall >/dev/null 2>&1
+check "uninstall deletes stacks when confirmed" bash -c "! test -e '$SB/.config/rig'"
 
 # --- rig-wait-ready ----------------------------------------------------------
 fresh_sandbox
