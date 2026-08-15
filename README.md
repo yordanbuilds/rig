@@ -113,9 +113,16 @@ Some panes shouldn't start until something else is ready. Say so with the
 extended pane form:
 
 ```json
-"server": {
-  "sail": "./vendor/bin/sail up -d",
-  "vite": { "run": "npm run dev", "after": "sail" }
+{
+  "root": "~/code/widgets",
+  "server": {
+    "sail": "./vendor/bin/sail up -d",
+    "vite": { "run": "npm run dev", "after": "sail" }
+  },
+  "workers": {
+    "queues": { "run": "sail artisan queue:work", "after": "sail" }
+  },
+  "terminal": null
 }
 ```
 
