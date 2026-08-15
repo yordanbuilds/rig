@@ -48,6 +48,8 @@ your Omarchy shell.
 
 ## Installation
 
+Rig needs [Omarchy](https://omarchy.org) 4 or newer — Herdr ships with it.
+
 ```bash
 omarchy plugin add https://github.com/yordanbuilds/rig.git --enable
 ```
