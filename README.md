@@ -61,7 +61,13 @@ That's the whole thing. On first load, Rig sets itself up:
 - the `rig` command lands on your PATH
 
 Everything setup adds is marked and yours — edit or remove any of it, and
-Rig won't put it back.
+Rig won't put it back. If <kbd>SUPER</kbd>+<kbd>R</kbd> was already yours,
+Rig leaves it alone — bind any key you like in
+`~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + SHIFT + R", "Rig", "omarchy-shell shell toggle omarchy.menu '{\"menu\":\"trigger.rig\"}'")
+```
 
 Updating? `omarchy plugin update yordanbuilds.rig && omarchy restart shell`.
 
