@@ -191,12 +191,12 @@ Item {
         next.push(row)
       })
       next.sort(function(a, b) { return a.name < b.name ? -1 : 1 })
-      next.push({ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" })
+      next.push({ type: "new", name: "New", running: false, wsId: null, invalid: false, error: "" })
       root.rows = next
       if (root.selectedIndex >= next.length) root.selectedIndex = next.length - 1
       if (root.selectedIndex < 0) root.selectedIndex = 0
     }, function(msg) {
-      if (root.rows.length === 0) root.rows = [{ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" }]
+      if (root.rows.length === 0) root.rows = [{ type: "new", name: "New", running: false, wsId: null, invalid: false, error: "" }]
       root.notify("Rig", root.herdrError(msg))
     })
   }
