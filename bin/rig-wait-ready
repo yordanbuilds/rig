@@ -10,6 +10,7 @@ PATTERN="${2:-RIG_READY}"
 TIMEOUT_MS="${RIG_WAIT_TIMEOUT_MS:-120000}"
 SETTLE_MS="${RIG_WAIT_SETTLE_MS:-2000}"
 MIN_MS="${RIG_WAIT_MIN_MS:-3000}"
+GRACE_MS="${RIG_WAIT_GRACE_MS:-5000}"
 POLL_MS=400
 
 descendants() {
@@ -72,7 +73,7 @@ while (( elapsed < TIMEOUT_MS )); do
     fi
   else
     stable=0
-    if (( ! warned )); then
+    if (( ! warned && elapsed >= GRACE_MS )); then
       echo "rig: $PANE ended without becoming ready — holding; re-run it to release, or wait for the timeout"
       warned=1
     fi

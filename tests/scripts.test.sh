@@ -209,7 +209,7 @@ check "wait-ready gives up on churning output" grep -q "gave up" <<<"$out"
 fresh_sandbox
 printf 'boom\nerror: failed\n' >"$SB/pane.out"
 printf '{"result":{"process_info":{"foreground_processes":[{"pid":100}],"shell_pid":100}}}' >"$SB/procinfo.json"
-out=$(RIG_WAIT_TIMEOUT_MS=1500 RIG_WAIT_MIN_MS=200 RIG_WAIT_SETTLE_MS=200 rig-wait-ready w1:p1 RIG_READY)
+out=$(RIG_WAIT_TIMEOUT_MS=1500 RIG_WAIT_MIN_MS=200 RIG_WAIT_SETTLE_MS=200 RIG_WAIT_GRACE_MS=200 rig-wait-ready w1:p1 RIG_READY)
 check "wait-ready holds when the upstream command failed" grep -q "ended without becoming ready" <<<"$out"
 
 echo
