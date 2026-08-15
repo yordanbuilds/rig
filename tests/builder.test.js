@@ -165,3 +165,16 @@ test("parseWorkspaces maps labels and finds the focused active tab", () => {
   assert.equal(ws.byLabel["apoynt"].activeTabId, "w1:t3")
   assert.equal(ws.focusedActiveTabId, "w2:t1")
 })
+
+test("normalize throws when a tab name contains a reserved character", () => {
+  assert.throws(() => B.normalize({ root: "/r", "web.admin": "cmd" }, HOME), /web\.admin/)
+})
+
+test("normalize throws when a pane name contains a reserved character", () => {
+  assert.throws(() => B.normalize({ root: "/r", t: { "a{b": "cmd" } }, HOME), /a\{b/)
+})
+
+test("parseWorkspaces: byLabel has no prototype-chain pollution", () => {
+  const ws = B.parseWorkspaces(JSON.stringify({ result: { workspaces: [] } }))
+  assert.equal(ws.byLabel["constructor"], undefined)
+})

@@ -12,6 +12,7 @@ function normalize(config, home) {
   var tabs = []
   for (var tabName in config) {
     if (tabName === "root") continue
+    if (/[.{}]/.test(tabName)) throw new Error("tab \"" + tabName + "\" must not contain \".\", \"{\", or \"}\"")
     var value = config[tabName]
     var panes = []
     if (value === null || typeof value === "string") {
@@ -29,6 +30,7 @@ function normalize(config, home) {
 }
 
 function makePane(tabName, paneName, value) {
+  if (/[.{}]/.test(paneName)) throw new Error("pane \"" + paneName + "\" must not contain \".\", \"{\", or \"}\"")
   var pane = { name: paneName, key: tabName + "." + paneName, run: null, after: null, ready: null }
   if (value === null) return pane
   if (typeof value === "string") { pane.run = value; return pane }
@@ -170,7 +172,7 @@ function parseStacksListing(text, decode) {
 }
 
 function parseWorkspaces(jsonText) {
-  var byLabel = {}, focusedActiveTabId = null
+  var byLabel = Object.create(null), focusedActiveTabId = null
   var list = JSON.parse(jsonText).result.workspaces || []
   list.forEach(function(ws) {
     byLabel[ws.label] = { id: ws.workspace_id, activeTabId: ws.active_tab_id || null }

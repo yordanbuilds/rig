@@ -71,13 +71,13 @@ Item {
       var existing = workspaces.byLabel[name]
       if (existing) {
         if (!background) runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", existing.id] }],
-          {}, function() {}, function(msg) { root.notify("Rally: " + name, msg) })
+          {}, function() {}, function(msg) { root.notify("Rally: " + name, root.herdrError(msg)) })
         return
       }
       root.executePlan(name, stack, background, workspaces.focusedActiveTabId)
     }, function(msg) {
       if (msg.indexOf("read ") === 0) root.notify("Rally", "no stack named \"" + name + "\" in " + root.stacksDir)
-      else root.notify("Rally: " + name, msg)
+      else root.notify("Rally: " + name, root.herdrError(msg))
     })
     return "building " + name
   }
@@ -92,11 +92,11 @@ Item {
         runner.run([
           { label: "activate last tab", argv: ["herdr", "tab", "focus", ctx[planObj.lastTabKey]] },
           { label: "restore focus", argv: ["herdr", "tab", "focus", previousTabId] }
-        ], {}, function() {}, function(msg) { root.notify("Rally: " + name, msg) })
+        ], {}, function() {}, function(msg) { root.notify("Rally: " + name, root.herdrError(msg)) })
       }
       root.refresh()
     }, function(msg) {
-      root.notify("Rally: " + name + " build failed", msg)
+      root.notify("Rally: " + name + " build failed", root.herdrError(msg))
     })
   }
 
@@ -111,8 +111,8 @@ Item {
         try { existing = Builder.parseWorkspaces(ctx.wsjson).byLabel[name] } catch (e) { root.notify("Rally", String(e)); return }
         if (!existing) { root.notify("Rally", "\"" + name + "\" is not running"); return }
         runner.run([{ label: "close workspace", argv: ["herdr", "workspace", "close", existing.id] }],
-          {}, function() { root.refresh() }, function(msg) { root.notify("Rally: " + name, msg) })
-      }, function(msg) { root.notify("Rally", msg) })
+          {}, function() { root.refresh() }, function(msg) { root.notify("Rally: " + name, root.herdrError(msg)) })
+      }, function(msg) { root.notify("Rally", root.herdrError(msg)) })
     return "killing " + name
   }
 
@@ -138,8 +138,8 @@ Item {
       result.sort(function(a, b) { return a.name < b.name ? -1 : 1 })
       var json = JSON.stringify(result)
       prepRunner.run([{ label: "write listing", argv: ["bash", "-c", 'printf "%s" "$1" > "$2"', "rally-list", json, out] }],
-        {}, function() {}, function(msg) { root.notify("Rally", msg) })
-    }, function(msg) { root.notify("Rally", msg) })
+        {}, function() {}, function(msg) { root.notify("Rally", root.herdrError(msg)) })
+    }, function(msg) { root.notify("Rally", root.herdrError(msg)) })
     return "listing"
   }
 
@@ -171,10 +171,15 @@ Item {
       next.push({ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" })
       root.rows = next
       if (root.selectedIndex >= next.length) root.selectedIndex = next.length - 1
+      if (root.selectedIndex < 0) root.selectedIndex = 0
     }, function(msg) {
-      root.rows = [{ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" }]
-      root.notify("Rally", msg)
+      if (root.rows.length === 0) root.rows = [{ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" }]
+      root.notify("Rally", root.herdrError(msg))
     })
+  }
+
+  function herdrError(msg) {
+    return /connect|connection refused|refused|socket|not running/i.test(msg) ? "no running Herdr server — start herdr first" : msg
   }
 
   function activateSelected(background) {
@@ -185,25 +190,29 @@ Item {
     if (row.running) {
       root.dismiss()
       runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", row.wsId] }],
-        {}, function() {}, function(msg) { root.notify("Rally", msg) })
+        {}, function() {}, function(msg) { root.notify("Rally", root.herdrError(msg)) })
       return
     }
+    var result = root.up(JSON.stringify({ stack: row.name, background: background }))
+    if (result.indexOf("error") === 0) { root.notify("Rally", result); return }
     if (!background) root.dismiss()
-    root.up(JSON.stringify({ stack: row.name, background: background }))
-    if (background) root.refresh()
   }
+
+  property string confirmKillName: ""
 
   function confirmKill() {
     var row = root.rows[root.selectedIndex]
     if (!row || row.type !== "stack" || !row.running) return
+    root.confirmKillName = row.name
     root.uiState = "confirm-kill"
   }
 
   function executeKill() {
-    var row = root.rows[root.selectedIndex]
+    var name = root.confirmKillName
+    root.confirmKillName = ""
     root.uiState = "list"
-    if (!row) return
-    root.killStack(JSON.stringify({ stack: row.name }))
+    if (!name) return
+    root.killStack(JSON.stringify({ stack: name }))
   }
 
   property string promptText: ""
@@ -232,6 +241,7 @@ Item {
     var name = arg.name
     if (!name || !Builder.NAME_RE.test(name)) return "error: stack names must match A-Za-z0-9._-"
     var from = arg.from || null
+    if (from !== null && !Builder.NAME_RE.test(from)) return "error: stack names must match A-Za-z0-9._-"
     var target = root.stacksDir + "/" + name + ".json"
     var source = from ? root.stacksDir + "/" + from + ".json"
                       : (Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rally/template.json")
@@ -290,7 +300,7 @@ Item {
             return
           }
           if (root.uiState === "confirm-kill") {
-            if (event.key === Qt.Key_Escape) { root.uiState = "list"; event.accepted = true }
+            if (event.key === Qt.Key_Escape) { root.confirmKillName = ""; root.uiState = "list"; event.accepted = true }
             else if (event.key === Qt.Key_K || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
               root.executeKill(); event.accepted = true
             }
@@ -298,7 +308,7 @@ Item {
           }
           if (event.key === Qt.Key_Escape) { root.dismiss(); event.accepted = true }
           else if (event.key === Qt.Key_Down) {
-            root.selectedIndex = Math.min(root.selectedIndex + 1, root.rows.length - 1); event.accepted = true
+            root.selectedIndex = Math.min(root.selectedIndex + 1, Math.max(0, root.rows.length - 1)); event.accepted = true
           } else if (event.key === Qt.Key_Up) {
             root.selectedIndex = Math.max(root.selectedIndex - 1, 0); event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {

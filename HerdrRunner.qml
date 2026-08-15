@@ -12,9 +12,10 @@ Item {
   property var errorCallback: null
   property bool busy: false
   property string lastStdout: ""
+  property var pending: []
 
   function run(steps, ctx, onDone, onError) {
-    if (root.busy) { if (onError) onError("runner busy — another build is in progress"); return }
+    if (root.busy) { root.pending.push({ steps: steps, ctx: ctx, onDone: onDone, onError: onError }); return }
     root.steps = steps
     root.ctx = ctx || ({})
     root.index = 0
@@ -22,6 +23,12 @@ Item {
     root.errorCallback = onError
     root.busy = true
     next()
+  }
+
+  function startNext() {
+    if (root.pending.length === 0) return
+    var job = root.pending.shift()
+    root.run(job.steps, job.ctx, job.onDone, job.onError)
   }
 
   function substitute(argv) {
@@ -37,6 +44,7 @@ Item {
     if (root.index >= root.steps.length) {
       root.busy = false
       if (root.doneCallback) root.doneCallback(root.ctx)
+      Qt.callLater(root.startNext)
       return
     }
     var step = root.steps[root.index]
@@ -50,6 +58,7 @@ Item {
   function fail(message) {
     root.busy = false
     if (root.errorCallback) root.errorCallback(message)
+    Qt.callLater(root.startNext)
   }
 
   function walk(obj, dottedPath) {
