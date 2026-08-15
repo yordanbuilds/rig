@@ -46,6 +46,8 @@ panes, a string is a command, `null` is an empty terminal. That's the whole
 format. No daemon, no YAML, no dependencies — just a small plugin living in
 your Omarchy shell.
 
+![Rig in action](demo.gif)
+
 ## Installation
 
 Rig needs [Omarchy](https://omarchy.org) 4 or newer — Herdr ships with it.
