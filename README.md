@@ -123,11 +123,20 @@ long pane form:
   "root": "~/Projects/widgets",
   "server": {
     "sail": "./vendor/bin/sail up -d",
-    "app": { "run": "sail artisan serve", "after": "sail", "ready": "Server running" },
-    "vite": { "run": "npm run dev", "after": "sail" }
+    "vite": {
+      "run": "sail npm run dev",
+      "after": "sail"
+    }
   },
   "workers": {
-    "queues": { "run": "sail artisan queue:work", "after": "app" }
+    "queues": {
+      "run": "sail artisan queue:work",
+      "after": "sail"
+    },
+    "scheduler": {
+      "run": "sail artisan schedule:work",
+      "after": "sail"
+    }
   },
   "terminal": null
 }
@@ -139,11 +148,26 @@ long pane form:
 | `after` | Wait for the named pane — anywhere in the stack — to become ready           |
 | `ready` | Output that marks this pane ready; without it, ready means the command finished |
 
-Here `sail` is ready when it exits, `app` is ready when it prints
-"Server running", and `queues` waits for `app` from another tab. The wait
-happens inside the dependent pane, where you can watch it — and it gives
-up after two minutes, so a slow dependency never leaves half your
-workspace dead.
+Here `sail` is ready when its command finishes, and everything marked
+`"after": "sail"` holds until it is — the workers from another tab. A
+long-running upstream declares readiness with `ready` instead:
+
+```json
+"server": {
+  "app": {
+    "run": "php artisan serve",
+    "ready": "Server running"
+  },
+  "tunnel": {
+    "run": "cloudflared tunnel run widgets-dev",
+    "after": "app"
+  }
+}
+```
+
+The wait happens inside the dependent pane, where you can watch it — and
+it gives up after two minutes, so a slow dependency never leaves half
+your workspace dead.
 
 ## License
 
