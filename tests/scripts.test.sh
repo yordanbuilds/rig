@@ -213,6 +213,10 @@ out=$(RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 "$SB/ready.signal")
 check "wait-ready releases on the ready file" test -z "$out"
 check "wait-ready consumes the ready file" bash -c "! test -e '$SB/ready.signal'"
 fresh_sandbox
+( sleep 0.35; touch "$SB/late.signal" ) &
+out=$(RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 "$SB/late.signal")
+check "wait-ready releases on a ready file that appears mid-wait" test -z "$out"
+fresh_sandbox
 printf 'start\n' >"$SB/pane.out"
 touch "$SB/pane.churn"
 out=$(RIG_WAIT_TIMEOUT_MS=1200 rig-wait-ready w1:p1 "$SB/never.signal")

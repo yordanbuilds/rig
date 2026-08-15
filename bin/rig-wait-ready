@@ -9,7 +9,11 @@ PANE="${1:?pane id}"
 SIGNAL="${2:?ready file or pattern}"
 TIMEOUT_MS="${RIG_WAIT_TIMEOUT_MS:-120000}"
 GRACE_MS="${RIG_WAIT_GRACE_MS:-5000}"
-POLL_MS=400
+
+# Ticks are 100 ms. The ready-file check is a bash builtin and effectively
+# free, so it runs every tick. Pane reads, the hold warning, and the listener
+# scan each cost process spawns, so they run every SLOW_EVERY-th tick.
+SLOW_EVERY=4
 
 descendants() {
   local queue=("$1") out=() p c
@@ -21,16 +25,18 @@ descendants() {
   printf '%s\n' "${out[@]}"
 }
 
-pane_listeners() { # inodes of LISTEN sockets held by the pane's process tree
-  local listen fd link inode out="" pid
-  listen=" $(awk '$4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6 2>/dev/null | sort -u | tr '\n' ' ') "
+global_listeners() { # inodes of every LISTEN socket on the box
+  awk '$4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6 2>/dev/null | sort -u | tr '\n' ' '
+}
+
+pane_listeners() { # <root-pid> <listen-inodes> — the subset held by the pane's process tree
+  local listen="$2" link inode out="" pid
   for pid in $(descendants "$1"); do
-    for fd in /proc/"$pid"/fd/*; do
-      link=$(readlink "$fd" 2>/dev/null) || continue
+    while IFS= read -r link; do
       [[ $link == socket:* ]] || continue
       inode="${link#socket:[}"; inode="${inode%]}"
       [[ $listen == *" $inode "* ]] && out+="$inode "
-    done
+    done < <(find /proc/"$pid"/fd -type l -printf '%l\n' 2>/dev/null)
   done
   printf '%s' "$out"
 }
@@ -41,8 +47,11 @@ read_pane() {
 
 shell_pid=$(herdr pane process-info --pane "$PANE" 2>/dev/null |
   grep -o '"shell_pid":[0-9]*' | grep -o '[0-9]*$' || true)
-baseline=""
-[[ -n $shell_pid ]] && baseline=" $(pane_listeners "$shell_pid") "
+baseline="" baseline_global=""
+if [[ -n $shell_pid ]]; then
+  baseline_global=" $(global_listeners) "
+  baseline=" $(pane_listeners "$shell_pid" "$baseline_global") "
+fi
 
 command_running() {
   # True when something other than the pane's shell holds the foreground.
@@ -53,24 +62,43 @@ command_running() {
   [[ -z $fg || $fg != "$shell_pid" ]]
 }
 
-elapsed=0 warned=0
-while (( elapsed < TIMEOUT_MS )); do
+now_ms() { local t=${EPOCHREALTIME//[!0-9]/}; NOW_MS=$(( t / 1000 )); }
+
+now_ms; start_ms=$NOW_MS
+warned=0 tick=0
+while :; do
+  now_ms
+  elapsed=$(( NOW_MS - start_ms ))
+  (( elapsed >= TIMEOUT_MS )) && break
+
   if [[ $SIGNAL == /* ]]; then
     [[ -e $SIGNAL ]] && { rm -f "$SIGNAL"; exit 0; }
-  else
-    grep -qF -- "$SIGNAL" < <(read_pane | tr -d '\n') && exit 0
   fi
-  if [[ -n $shell_pid ]]; then
-    for inode in $(pane_listeners "$shell_pid"); do
-      [[ $baseline == *" $inode "* ]] || exit 0
-    done
+
+  if (( tick % SLOW_EVERY == 0 )); then
+    if [[ $SIGNAL != /* ]]; then
+      grep -qF -- "$SIGNAL" < <(read_pane | tr -d '\n') && exit 0
+    fi
+    if [[ -n $shell_pid ]]; then
+      # A new pane listener is necessarily a new global listener, so the
+      # per-fd walk of the pane's process tree only runs when the box-wide
+      # listen set changed — one awk per scan otherwise.
+      global_now=" $(global_listeners) "
+      if [[ $global_now != "$baseline_global" ]]; then
+        for inode in $(pane_listeners "$shell_pid" "$global_now"); do
+          [[ $baseline == *" $inode "* ]] || exit 0
+        done
+        baseline_global=$global_now
+      fi
+    fi
+    if (( ! warned )) && (( elapsed >= GRACE_MS )) && ! command_running; then
+      echo "rig: $PANE ended without becoming ready — holding; re-run it to release, or wait for the timeout"
+      warned=1
+    fi
   fi
-  if ! command_running && (( ! warned && elapsed >= GRACE_MS )); then
-    echo "rig: $PANE ended without becoming ready — holding; re-run it to release, or wait for the timeout"
-    warned=1
-  fi
-  sleep 0.4
-  elapsed=$(( elapsed + POLL_MS ))
+
+  sleep 0.1
+  (( tick++ ))
 done
 echo "rig: gave up waiting for $PANE — starting anyway"
 exit 0
