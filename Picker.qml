@@ -101,7 +101,7 @@ Item {
   }
 
   function executePlan(name, stack, background, previousTabId, out) {
-    var planObj = Builder.plan(name, stack)
+    var planObj = Builder.plan(name, stack, String(Date.now()))
     var steps = planObj.steps.slice()
     if (!background) steps = steps.concat(Builder.focusSteps(planObj))
     runner.run(steps, {}, function(ctx) {

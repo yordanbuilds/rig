@@ -211,6 +211,16 @@ printf 'boom\nerror: failed\n' >"$SB/pane.out"
 printf '{"result":{"process_info":{"foreground_processes":[{"pid":100}],"shell_pid":100}}}' >"$SB/procinfo.json"
 out=$(RIG_WAIT_TIMEOUT_MS=1500 RIG_WAIT_MIN_MS=200 RIG_WAIT_SETTLE_MS=200 RIG_WAIT_GRACE_MS=200 rig-wait-ready w1:p1 RIG_READY)
 check "wait-ready holds when the upstream command failed" grep -q "ended without becoming ready" <<<"$out"
+fresh_sandbox
+touch "$SB/ready.signal"
+out=$(RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 "$SB/ready.signal")
+check "wait-ready releases on the ready file" test -z "$out"
+check "wait-ready consumes the ready file" bash -c "! test -e '$SB/ready.signal'"
+fresh_sandbox
+printf 'start\n' >"$SB/pane.out"
+touch "$SB/pane.churn"
+out=$(RIG_WAIT_TIMEOUT_MS=1200 rig-wait-ready w1:p1 "$SB/never.signal")
+check "wait-ready gives up when the file never appears" grep -q "gave up" <<<"$out"
 
 echo
 echo "passed $PASS, failed $FAIL"

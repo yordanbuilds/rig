@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# rig-wait-ready <pane-id> [pattern] — the gate behind `after`. Releases
-# when the awaited pane's command finishes (pattern in its output), when a
-# process in that pane opens a new TCP listener, or when the pane's output
-# settles. Gives up after two minutes and lets the dependent start anyway.
+# rig-wait-ready <pane-id> <signal> — the gate behind `after`. The signal is
+# a ready-file path (touched when the awaited command finishes) or an output
+# pattern to match. Also releases when a process in the pane opens a new TCP
+# listener or when its output settles. Gives up after two minutes and lets
+# the dependent start anyway.
 set -u
 
 PANE="${1:?pane id}"
-PATTERN="${2:-RIG_READY}"
+SIGNAL="${2:?ready file or pattern}"
 TIMEOUT_MS="${RIG_WAIT_TIMEOUT_MS:-120000}"
 SETTLE_MS="${RIG_WAIT_SETTLE_MS:-2000}"
 MIN_MS="${RIG_WAIT_MIN_MS:-3000}"
@@ -58,7 +59,11 @@ command_running() {
 elapsed=0 stable=0 last="" warned=0
 while (( elapsed < TIMEOUT_MS )); do
   snap=$(read_pane)
-  grep -qF -- "$PATTERN" <<<"${snap//$'\n'/}" && exit 0
+  if [[ $SIGNAL == /* ]]; then
+    [[ -e $SIGNAL ]] && { rm -f "$SIGNAL"; exit 0; }
+  else
+    grep -qF -- "$SIGNAL" <<<"${snap//$'\n'/}" && exit 0
+  fi
   if [[ -n $shell_pid ]]; then
     for inode in $(pane_listeners "$shell_pid"); do
       [[ $baseline == *" $inode "* ]] || exit 0

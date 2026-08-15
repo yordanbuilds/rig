@@ -84,8 +84,6 @@ function validate(stack) {
 
 var TIMEOUT_MS = 120000
 var GATE = '"$HOME"/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-wait-ready'
-var MARKER = "RIG_READY"
-var TYPED_MARKER = 'RIG_"READY"'   // typed into the pane; its echo output is MARKER, the typed line never matches
 
 function shellQuote(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'"
@@ -100,7 +98,12 @@ function isAwaited(stack, pane) {
   return allPanes(stack).some(function(p) { return p.after === pane.name })
 }
 
-function plan(name, stack) {
+function readyFile(nonce, paneKey) {
+  return "/tmp/rig-ready-" + nonce + "-@{pane:" + paneKey + "}"
+}
+
+function plan(name, stack, nonce) {
+  nonce = nonce || "0"
   var steps = []
   var firstTab = stack.tabs[0]
   var cap0 = { "ws": "result.workspace.workspace_id" }
@@ -139,11 +142,11 @@ function plan(name, stack) {
   allPanes(stack).forEach(function(pane) {
     if (pane.run === null) return
     var cmd = pane.run
-    if (isAwaited(stack, pane) && !pane.ready) cmd = cmd + " && echo " + TYPED_MARKER
+    if (isAwaited(stack, pane) && !pane.ready) cmd = cmd + " && touch " + readyFile(nonce, pane.key)
     if (pane.after) {
       var target = resolveAfter(stack, pane.after)
-      var pattern = target.ready ? target.ready : MARKER
-      cmd = GATE + " @{pane:" + target.key + "} " + shellQuote(pattern) + "; " + cmd
+      var signal = target.ready ? shellQuote(target.ready) : readyFile(nonce, target.key)
+      cmd = GATE + " @{pane:" + target.key + "} " + signal + "; " + cmd
     }
     steps.push({ label: "start " + pane.key,
       argv: ["herdr", "pane", "run", "@{pane:" + pane.key + "}", cmd] })
@@ -201,4 +204,4 @@ function walkPath(obj, dottedPath) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-  module.exports = { NAME_RE: NAME_RE, normalize: normalize, validate: validate, resolveAfter: resolveAfter, allPanes: allPanes, plan: plan, focusSteps: focusSteps, shellQuote: shellQuote, parseStacksListing: parseStacksListing, parseWorkspaces: parseWorkspaces, TIMEOUT_MS: TIMEOUT_MS, MARKER: MARKER, TYPED_MARKER: TYPED_MARKER, isAwaited: isAwaited, substituteTokens: substituteTokens, walkPath: walkPath }
+  module.exports = { NAME_RE: NAME_RE, normalize: normalize, validate: validate, resolveAfter: resolveAfter, allPanes: allPanes, plan: plan, focusSteps: focusSteps, shellQuote: shellQuote, parseStacksListing: parseStacksListing, parseWorkspaces: parseWorkspaces, TIMEOUT_MS: TIMEOUT_MS, isAwaited: isAwaited, substituteTokens: substituteTokens, walkPath: walkPath }

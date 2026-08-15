@@ -115,14 +115,14 @@ test("plan: all structure precedes all runs (two phases)", () => {
   assert.ok(firstRun > lastStructure)
 })
 
-test("plan: gate prefixes dependent command; auto-marker appended to awaited exit-style pane", () => {
+test("plan: gate prefixes dependent command; ready-file touch appended to awaited exit-style pane", () => {
   const cfg = { root: "/r", server: { sail: "sail up -d", vite: { run: "npm run dev", after: "sail" } } }
-  const plan = B.plan("s", B.normalize(cfg, HOME))
+  const plan = B.plan("s", B.normalize(cfg, HOME), "N1")
   const runs = plan.steps.filter(s => s.argv[2] === "run")
   const sail = runs.find(s => s.argv[3] === "@{pane:server.sail}")
   const vite = runs.find(s => s.argv[3] === "@{pane:server.vite}")
-  assert.equal(sail.argv[4], 'sail up -d && echo RIG_"READY"')
-  assert.equal(vite.argv[4], "\"$HOME\"/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-wait-ready @{pane:server.sail} 'RIG_READY'; npm run dev")
+  assert.equal(sail.argv[4], "sail up -d && touch /tmp/rig-ready-N1-@{pane:server.sail}")
+  assert.equal(vite.argv[4], "\"$HOME\"/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-wait-ready @{pane:server.sail} /tmp/rig-ready-N1-@{pane:server.sail}; npm run dev")
 })
 
 test("plan: declared ready pattern is used instead of the marker, shell-quoted", () => {
@@ -131,7 +131,7 @@ test("plan: declared ready pattern is used instead of the marker, shell-quoted",
   const runs = plan.steps.filter(s => s.argv[2] === "run")
   const srv = runs.find(s => s.argv[3] === "@{pane:t.srv}")
   const w = runs.find(s => s.argv[3] === "@{pane:t.w}")
-  assert.equal(srv.argv[4], "serve")  // ready-pattern pane gets NO marker
+  assert.equal(srv.argv[4], "serve")  // ready-pattern pane gets no touch appended
   assert.equal(w.argv[4], "\"$HOME\"/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-wait-ready @{pane:t.srv} 'Server running on port'; work")
 })
 
