@@ -16,6 +16,9 @@ Item {
 
   function open(payloadJson) {
     root.opened = true
+    root.uiState = "list"
+    root.selectedIndex = 0
+    root.refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -115,7 +118,70 @@ Item {
 
   function kill(argJson) { return killStack(argJson) }
 
-  function refresh() { }  // populated in Task 5; safe no-op until then
+  property var rows: []
+  property int selectedIndex: 0
+  property string uiState: "list"
+
+  function refresh() {
+    prepRunner.run([
+      { label: "list stacks", argv: ["bash", "-c",
+        'for f in "$HOME"/.config/omarchy/stacks/*.json; do [ -e "$f" ] || continue; printf "%s\\t%s\\n" "$(basename "$f" .json)" "$(base64 -w0 "$f")"; done'],
+        collect: "listing" },
+      { label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }
+    ], {}, function(ctx) {
+      var workspaces = { byLabel: {} }
+      try { workspaces = Builder.parseWorkspaces(ctx.wsjson) } catch (e) { }
+      var next = []
+      Builder.parseStacksListing(ctx.listing || "", Qt.atob).forEach(function(entry) {
+        var row = { type: "stack", name: entry.name, running: false, wsId: null, invalid: false, error: "" }
+        try {
+          var errors = Builder.validate(Builder.normalize(JSON.parse(entry.raw), root.homeDir))
+          if (errors.length) { row.invalid = true; row.error = errors[0] }
+        } catch (e) { row.invalid = true; row.error = String(e.message || e) }
+        var ws = workspaces.byLabel[entry.name]
+        if (ws) { row.running = true; row.wsId = ws.id }
+        next.push(row)
+      })
+      next.sort(function(a, b) { return a.name < b.name ? -1 : 1 })
+      next.push({ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" })
+      root.rows = next
+      if (root.selectedIndex >= next.length) root.selectedIndex = next.length - 1
+    }, function(msg) {
+      root.rows = [{ type: "new", name: "＋ New", running: false, wsId: null, invalid: false, error: "" }]
+      root.notify("Rally", msg)
+    })
+  }
+
+  function activateSelected(background) {
+    var row = root.rows[root.selectedIndex]
+    if (!row) return
+    if (row.type === "new") { root.startPrompt("create", null); return }
+    if (row.invalid) { root.notify("Rally: " + row.name + " is invalid", row.error); return }
+    if (row.running) {
+      root.dismiss()
+      runner.run([{ label: "focus workspace", argv: ["herdr", "workspace", "focus", row.wsId] }],
+        {}, function() {}, function(msg) { root.notify("Rally", msg) })
+      return
+    }
+    if (!background) root.dismiss()
+    root.up(JSON.stringify({ stack: row.name, background: background }))
+    if (background) root.refresh()
+  }
+
+  function confirmKill() {
+    var row = root.rows[root.selectedIndex]
+    if (!row || row.type !== "stack" || !row.running) return
+    root.uiState = "confirm-kill"
+  }
+
+  function executeKill() {
+    var row = root.rows[root.selectedIndex]
+    root.uiState = "list"
+    if (!row) return
+    root.killStack(JSON.stringify({ stack: row.name }))
+  }
+
+  function startPrompt(mode, source) { }  // populated in Task 6; safe no-op until then
 
   PanelWindow {
     id: panel
@@ -149,8 +215,25 @@ Item {
         focus: true
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
-          if (event.key === Qt.Key_Escape) {
-            root.dismiss()
+          if (root.uiState === "confirm-kill") {
+            if (event.key === Qt.Key_Escape) { root.uiState = "list"; event.accepted = true }
+            else if (event.key === Qt.Key_K || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+              root.executeKill(); event.accepted = true
+            }
+            return
+          }
+          if (event.key === Qt.Key_Escape) { root.dismiss(); event.accepted = true }
+          else if (event.key === Qt.Key_Down) {
+            root.selectedIndex = Math.min(root.selectedIndex + 1, root.rows.length - 1); event.accepted = true
+          } else if (event.key === Qt.Key_Up) {
+            root.selectedIndex = Math.max(root.selectedIndex - 1, 0); event.accepted = true
+          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            root.activateSelected((event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true
+          } else if (event.key === Qt.Key_K) {
+            root.confirmKill(); event.accepted = true
+          } else if (event.key === Qt.Key_N) {
+            var row = root.rows[root.selectedIndex]
+            if (row && row.type === "stack") root.startPrompt("clone", row.name)
             event.accepted = true
           }
         }
@@ -158,7 +241,7 @@ Item {
         Column {
           id: content
           width: parent.width
-          spacing: Style.space(8)
+          spacing: Style.space(4)
 
           Text {
             width: parent.width
@@ -167,6 +250,48 @@ Item {
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.title
             font.bold: true
+            bottomPadding: Style.space(6)
+          }
+
+          Repeater {
+            model: root.rows
+            delegate: Rectangle {
+              required property var modelData
+              required property int index
+              width: content.width
+              height: rowText.implicitHeight + Style.space(10)
+              radius: Style.space(4)
+              color: index === root.selectedIndex ? Color.menu.selectedBackground : "transparent"
+
+              Text {
+                id: rowText
+                anchors.verticalCenter: parent.verticalCenter
+                x: Style.space(8)
+                width: parent.width - Style.space(16)
+                elide: Text.ElideRight
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.subtitle
+                color: index === root.selectedIndex ? Color.menu.selectedText : Color.menu.text
+                text: {
+                  if (modelData.type === "new") return modelData.name
+                  var glyph = modelData.invalid ? "⚠" : (modelData.running ? "●" : "○")
+                  if (root.uiState === "confirm-kill" && index === root.selectedIndex)
+                    return glyph + "  kill " + modelData.name + "?  (k/Enter confirms, Esc cancels)"
+                  return glyph + "  " + modelData.name
+                }
+              }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(8)
+                visible: modelData.type === "stack"
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.subtitle
+                text: modelData.invalid ? "invalid" : (modelData.running ? "running" : "")
+                color: modelData.invalid ? Color.urgent : Color.accent
+              }
+            }
           }
         }
       }
