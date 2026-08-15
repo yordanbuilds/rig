@@ -31,7 +31,10 @@ if cp=$(client_pid); then
     hyprctl dispatch focuswindow "pid:$wp" >/dev/null 2>&1 || true
   fi
 else
-  ( omarchy-launch-terminal-herdr >/dev/null 2>&1 & )
+  # Herdr's panes inherit $SHELL from the server's environment; pin it to
+  # the login shell so panes match no matter what context launched us.
+  login_shell=$(getent passwd "$USER" 2>/dev/null | cut -d: -f7)
+  ( SHELL="${login_shell:-$SHELL}" omarchy-launch-terminal-herdr >/dev/null 2>&1 & )
 fi
 
 for _ in $(seq 100); do
