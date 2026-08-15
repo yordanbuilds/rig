@@ -226,7 +226,18 @@ fresh_sandbox
 touch "$SB/ready.signal"
 out=$(RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 "$SB/ready.signal")
 check "wait-ready releases on the ready file" test -z "$out"
-check "wait-ready consumes the ready file" bash -c "! test -e '$SB/ready.signal'"
+check "wait-ready leaves the ready file for sibling gates" test -e "$SB/ready.signal"
+# Fan-out: a target with several `after` dependents touches ONE file that
+# every gate polls — all of them must release, not just the fastest.
+fresh_sandbox
+( sleep 0.3; touch "$SB/shared.signal" ) &
+RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 "$SB/shared.signal" >"$SB/gate1.out" &
+g1=$!
+RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p2 "$SB/shared.signal" >"$SB/gate2.out" &
+g2=$!
+wait "$g1" "$g2"
+check "fan-out: every dependent of one target releases" \
+  bash -c "! test -s '$SB/gate1.out' && ! test -s '$SB/gate2.out'"
 fresh_sandbox
 ( sleep 0.35; touch "$SB/late.signal" ) &
 out=$(RIG_WAIT_TIMEOUT_MS=3000 rig-wait-ready w1:p1 "$SB/late.signal")

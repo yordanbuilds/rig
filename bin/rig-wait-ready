@@ -72,7 +72,9 @@ while :; do
   (( elapsed >= TIMEOUT_MS )) && break
 
   if [[ $SIGNAL == /* ]]; then
-    [[ -e $SIGNAL ]] && { rm -f "$SIGNAL"; exit 0; }
+    # Never delete the file: every dependent of the target polls this same
+    # path, and the nonce in its name keeps stale files from releasing later runs.
+    [[ -e $SIGNAL ]] && exit 0
   fi
 
   if (( tick % SLOW_EVERY == 0 )); then
