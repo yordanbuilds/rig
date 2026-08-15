@@ -63,3 +63,105 @@ test("validate: self-reference is a cycle", () => {
   const s = B.normalize({ root: "/r", t: { a: { run: "x", after: "a" } } }, HOME)
   assert.match(B.validate(s).join(" "), /cycle|itself/i)
 })
+
+const APOYNT = {
+  root: "~/code/apoynt",
+  server: { artisan: "php artisan serve", vite: "npm run dev" },
+  workers: { queues: "php artisan queue:work", scheduler: "php artisan schedule:work", reverb: "php artisan reverb:start" },
+  terminal: null
+}
+
+test("plan: workspace create is first, with cwd/label/no-focus and full capture", () => {
+  const stack = B.normalize(APOYNT, HOME)
+  const plan = B.plan("apoynt", stack)
+  const s0 = plan.steps[0]
+  assert.deepEqual(s0.argv, ["herdr", "workspace", "create", "--cwd", "/home/u/code/apoynt", "--label", "apoynt", "--no-focus"])
+  assert.deepEqual(s0.capture, {
+    "ws": "result.workspace.workspace_id",
+    "tab:server": "result.tab.tab_id",
+    "pane:server.artisan": "result.root_pane.pane_id"
+  })
+})
+
+test("plan: first tab is renamed, later tabs created with cwd and label", () => {
+  const plan = B.plan("apoynt", B.normalize(APOYNT, HOME))
+  assert.deepEqual(plan.steps[1].argv, ["herdr", "tab", "rename", "@{tab:server}", "server"])
+  const tabCreate = plan.steps.find(s => s.argv[1] === "tab" && s.argv[2] === "create")
+  assert.deepEqual(tabCreate.argv, ["herdr", "tab", "create", "--workspace", "@{ws}", "--cwd", "/home/u/code/apoynt", "--label", "workers", "--no-focus"])
+  assert.deepEqual(tabCreate.capture, { "tab:workers": "result.tab.tab_id", "pane:workers.queues": "result.root_pane.pane_id" })
+})
+
+test("plan: even splits — 3 panes use ratios 0.333 then 0.5, splitting the previous new pane", () => {
+  const plan = B.plan("apoynt", B.normalize(APOYNT, HOME))
+  const splits = plan.steps.filter(s => s.argv[1] === "pane" && s.argv[2] === "split")
+  const workers = splits.filter(s => s.argv[3].indexOf("workers") !== -1)
+  assert.deepEqual(workers[0].argv, ["herdr", "pane", "split", "@{pane:workers.queues}", "--direction", "right", "--ratio", "0.333", "--no-focus"])
+  assert.deepEqual(workers[0].capture, { "pane:workers.scheduler": "result.pane.pane_id" })
+  assert.deepEqual(workers[1].argv, ["herdr", "pane", "split", "@{pane:workers.scheduler}", "--direction", "right", "--ratio", "0.5", "--no-focus"])
+})
+
+test("plan: every pane is renamed; empty panes get no run step", () => {
+  const plan = B.plan("apoynt", B.normalize(APOYNT, HOME))
+  const renames = plan.steps.filter(s => s.argv[1] === "pane" && s.argv[2] === "rename")
+  assert.equal(renames.length, 6)  // artisan vite queues scheduler reverb terminal
+  const runs = plan.steps.filter(s => s.argv[1] === "pane" && s.argv[2] === "run")
+  assert.equal(runs.length, 5)     // terminal is null → no run
+})
+
+test("plan: all structure precedes all runs (two phases)", () => {
+  const plan = B.plan("apoynt", B.normalize(APOYNT, HOME))
+  const firstRun = plan.steps.findIndex(s => s.argv[2] === "run")
+  const lastStructure = Math.max(...plan.steps.map((s, i) => s.argv[2] !== "run" ? i : -1))
+  assert.ok(firstRun > lastStructure)
+})
+
+test("plan: gate prefixes dependent command; auto-marker appended to awaited exit-style pane", () => {
+  const cfg = { root: "/r", server: { sail: "sail up -d", vite: { run: "npm run dev", after: "sail" } } }
+  const plan = B.plan("s", B.normalize(cfg, HOME))
+  const runs = plan.steps.filter(s => s.argv[2] === "run")
+  const sail = runs.find(s => s.argv[3] === "@{pane:server.sail}")
+  const vite = runs.find(s => s.argv[3] === "@{pane:server.vite}")
+  assert.equal(sail.argv[4], 'sail up -d && echo RALLY_"READY"')
+  assert.equal(vite.argv[4], "herdr pane wait-output @{pane:server.sail} --match 'RALLY_READY' --timeout 120000; npm run dev")
+})
+
+test("plan: declared ready pattern is used instead of the marker, shell-quoted", () => {
+  const cfg = { root: "/r", t: { srv: { run: "serve", ready: "Server running on port" }, w: { run: "work", after: "srv" } } }
+  const plan = B.plan("s", B.normalize(cfg, HOME))
+  const runs = plan.steps.filter(s => s.argv[2] === "run")
+  const srv = runs.find(s => s.argv[3] === "@{pane:t.srv}")
+  const w = runs.find(s => s.argv[3] === "@{pane:t.w}")
+  assert.equal(srv.argv[4], "serve")  // ready-pattern pane gets NO marker
+  assert.equal(w.argv[4], "herdr pane wait-output @{pane:t.srv} --match 'Server running on port' --timeout 120000; work")
+})
+
+test("plan: lastTabKey names the final tab; focusSteps produce the finale", () => {
+  const plan = B.plan("apoynt", B.normalize(APOYNT, HOME))
+  assert.equal(plan.lastTabKey, "tab:terminal")
+  assert.deepEqual(B.focusSteps(plan).map(s => s.argv), [
+    ["herdr", "workspace", "focus", "@{ws}"],
+    ["herdr", "tab", "focus", "@{tab:terminal}"]
+  ])
+})
+
+test("shellQuote survives embedded single quotes", () => {
+  assert.equal(B.shellQuote("it's"), "'it'\\''s'")
+})
+
+test("parseStacksListing decodes name/base64 lines", () => {
+  const decode = s => Buffer.from(s, "base64").toString("utf8")
+  const line = "apoynt\t" + Buffer.from('{"root":"/r"}').toString("base64")
+  assert.deepEqual(B.parseStacksListing(line + "\n", decode), [{ name: "apoynt", raw: '{"root":"/r"}' }])
+  assert.deepEqual(B.parseStacksListing("", decode), [])
+})
+
+test("parseWorkspaces maps labels and finds the focused active tab", () => {
+  const json = JSON.stringify({ result: { workspaces: [
+    { workspace_id: "w1", label: "apoynt", focused: false, active_tab_id: "w1:t3" },
+    { workspace_id: "w2", label: "misc", focused: true, active_tab_id: "w2:t1" }
+  ] } })
+  const ws = B.parseWorkspaces(json)
+  assert.equal(ws.byLabel["apoynt"].id, "w1")
+  assert.equal(ws.byLabel["apoynt"].activeTabId, "w1:t3")
+  assert.equal(ws.focusedActiveTabId, "w2:t1")
+})
