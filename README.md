@@ -64,14 +64,15 @@ Leaving? `rig uninstall` removes every trace, keeping your stack files.
 ## The menu
 
 Your stacks live where everything else on your desktop lives — in the
-Omarchy menu, under *Trigger → Rig*. <kbd>SUPER</kbd>+<kbd>R</kbd> takes
-you straight there: type to search, <kbd>Enter</kbd> to bring a stack up,
-or to jump to it if it's already running. Running stacks carry a ✓.
-`＋ New` asks for a name and opens your editor with a working template.
+Omarchy menu, under *Trigger → Rig*.
 
-Stacks are just files in `~/.config/rig/stacks/` — the filename is the
-stack name. `rig new` keeps the menu in sync; dropped a file in by hand?
-`rig sync`.
+|                              |                                                     |
+| ---------------------------- | --------------------------------------------------- |
+| <kbd>SUPER</kbd>+<kbd>R</kbd> | Open your stacks in the menu                       |
+| type                          | Search                                             |
+| <kbd>Enter</kbd>              | Bring the stack up — or jump to it, if running     |
+| ✓                             | This stack is running                              |
+| `＋ New`                      | Name a stack, get a working template in your editor |
 
 ## The CLI
 
@@ -91,45 +92,45 @@ simply takes you there — run it as many times as you like.
 
 ## Stack files
 
-- `root` is the only required key: the working directory for every tab.
-  `~` expands, as it should.
-- Every other top-level key is a **tab**, created in file order. A string
-  runs one command. `null` opens an empty terminal. An object opens one
-  pane per entry, split evenly.
-- After a build, focus lands on the **last tab in the file** — end with
-  `"terminal": null` and every morning starts in a fresh shell, with
-  everything else already humming along.
+One file per stack in `~/.config/rig/stacks/` — the filename is the stack
+name. `rig new` keeps the menu in sync; dropped a file in by hand?
+`rig sync`.
+
+| In the file             | What you get                                          |
+| ----------------------- | ----------------------------------------------------- |
+| `"root": "~/code/acme"` | Working directory for every tab — the one required key |
+| `"server": "command"`   | A tab with one pane running the command               |
+| `"terminal": null`      | A tab with an empty terminal                          |
+| `"workers": { … }`      | A tab with one pane per entry, split evenly           |
+
+Tabs are created in file order, and after a build **focus lands on the
+last tab in the file** — end with `"terminal": null` and every morning
+starts in a fresh shell, everything else already humming along.
 
 ### Waiting on other panes
 
-Some panes shouldn't start until something else is ready. Say so:
+Some panes shouldn't start until something else is ready. Say so with the
+extended pane form:
 
 ```json
-{
-  "root": "~/code/widgets",
-  "server": {
-    "sail": "./vendor/bin/sail up -d",
-    "vite": { "run": "npm run dev", "after": "sail" }
-  },
-  "workers": {
-    "queues": { "run": "sail artisan queue:work", "after": "sail" }
-  },
-  "terminal": null
+"server": {
+  "sail": "./vendor/bin/sail up -d",
+  "vite": { "run": "npm run dev", "after": "sail" }
 }
 ```
 
-A pane is ready when its command finishes. For long-running processes,
-tell Rig what to look for instead:
+- **`after`** — wait for the named pane (anywhere in the stack) to be ready.
+- **Ready means** the pane's command exited successfully — or, for
+  long-running processes, that its `ready` text appeared in the output:
 
 ```json
 "server": { "run": "php artisan serve", "ready": "Server running" },
 "stripe": { "run": "stripe listen --forward-to localhost:8000", "after": "server" }
 ```
 
-The waiting happens right inside the dependent pane, where you can watch
-it. And if an upstream never reports ready, Rig starts the pane anyway
-after two minutes — a slow dependency shouldn't leave half your workspace
-dead.
+- **The wait is visible** — it happens right inside the dependent pane.
+- **It can't hang your morning** — after two minutes the pane starts
+  anyway.
 
 ## License
 
