@@ -12,7 +12,7 @@ JSON file:
 
 ```json
 {
-  "root": "~/code/acme",
+  "root": "~/Projects/acme",
   "server": {
     "artisan": "php artisan serve",
     "vite": "npm run dev"
@@ -98,7 +98,7 @@ name. `rig new` keeps the menu in sync; dropped a file in by hand?
 
 | In the file             | What you get                                          |
 | ----------------------- | ----------------------------------------------------- |
-| `"root": "~/code/acme"` | Working directory for every tab — the one required key |
+| `"root": "~/Projects/acme"` | Working directory for every tab — the one required key |
 | `"server": "command"`   | A tab with one pane running the command               |
 | `"terminal": null`      | A tab with an empty terminal                          |
 | `"workers": { … }`      | A tab with one pane per entry, split evenly           |
@@ -114,7 +114,7 @@ extended pane form:
 
 ```json
 {
-  "root": "~/code/widgets",
+  "root": "~/Projects/widgets",
   "server": {
     "sail": "./vendor/bin/sail up -d",
     "vite": { "run": "npm run dev", "after": "sail" }

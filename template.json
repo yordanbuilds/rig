@@ -1,5 +1,5 @@
 {
-  "root": "~/code/myproject",
+  "root": "~/Projects/myproject",
   "server": {
     "app": "php artisan serve",
     "vite": "npm run dev"
