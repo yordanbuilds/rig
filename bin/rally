@@ -34,7 +34,7 @@ case "$cmd" in
   "") exec omarchy-shell shell toggle "$ID" '{}' ;;
   -h|--help) usage; exit 0 ;;
   up|kill|new|list) shift ;;
-  *) set -- "$cmd"; cmd=up ;;   # sugar: rally <stack>
+  *) cmd=up ;;   # sugar: rally <stack>
 esac
 
 case "$cmd" in
