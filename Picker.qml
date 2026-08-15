@@ -61,10 +61,12 @@ Item {
     if (!name || !Builder.NAME_RE.test(name)) return "error: invalid stack name"
     var background = arg.background === true
     var path = root.stacksDir + "/" + name + ".json"
-    prepRunner.run([
+    var prep = [
       { label: "read " + name + ".json", argv: ["cat", path], collect: "raw" },
       { label: "list workspaces", argv: ["herdr", "workspace", "list"], collect: "wsjson" }
-    ], {}, function(ctx) {
+    ]
+    if (!background) prep.unshift({ label: "open Herdr", argv: [root.pluginDir + "/bin/rig-ensure-herdr"] })
+    prepRunner.run(prep, {}, function(ctx) {
       var stack, errors, workspaces
       try {
         stack = Builder.normalize(JSON.parse(ctx.raw), root.homeDir)

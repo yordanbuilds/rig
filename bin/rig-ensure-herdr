@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# rig-ensure-herdr — make sure a Herdr terminal is on screen and the server
+# answers, before a foreground build or jump. Focuses the existing Herdr
+# window if one exists (found via the client process's ancestry), launches
+# one otherwise, then waits for the server.
+set -euo pipefail
+
+client_pid() {
+  local p
+  for p in $(pgrep -x herdr 2>/dev/null); do
+    # The TUI client has a controlling terminal; the server does not.
+    [[ $(readlink "/proc/$p/fd/0" 2>/dev/null) == /dev/pts/* ]] && { echo "$p"; return 0; }
+  done
+  return 1
+}
+
+window_pid_for() {
+  # Walk $1's ancestors until we hit a pid that owns a Hyprland window.
+  local p="$1" wins
+  wins=$(hyprctl clients -j 2>/dev/null | grep -o '"pid": [0-9]*' | awk '{print $2}') || return 1
+  for _ in $(seq 15); do
+    grep -qx "$p" <<<"$wins" && { echo "$p"; return 0; }
+    p=$(awk '/^PPid:/{print $2}' "/proc/$p/status" 2>/dev/null) || return 1
+    [[ -n $p && $p != 0 && $p != 1 ]] || return 1
+  done
+  return 1
+}
+
+if cp=$(client_pid); then
+  if wp=$(window_pid_for "$cp"); then
+    hyprctl dispatch focuswindow "pid:$wp" >/dev/null 2>&1 || true
+  fi
+else
+  omarchy-launch-terminal-herdr >/dev/null 2>&1 || true
+fi
+
+for _ in $(seq 100); do
+  herdr workspace list >/dev/null 2>&1 && exit 0
+  sleep 0.1
+done
+echo "herdr did not come up" >&2
+exit 1

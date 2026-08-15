@@ -70,7 +70,7 @@ Omarchy menu, under *Trigger → Rig*.
 | ---------------------------- | --------------------------------------------------- |
 | <kbd>SUPER</kbd>+<kbd>R</kbd> | Open your stacks in the menu                       |
 | type                          | Search                                             |
-| <kbd>Enter</kbd>              | Bring the stack up — or jump to it, if running     |
+| <kbd>Enter</kbd>              | Bring the stack up (opening Herdr if needed) — or jump to it     |
 | ✓                             | This stack is running                              |
 | `＋ New`                      | Name a stack, get a working template in your editor |
 
