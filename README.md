@@ -36,7 +36,7 @@ acme
 ├─ server     [ artisan ]  [ vite ]
 ├─ workers    [ queues ]  [ scheduler ]  [ reverb ]
 ├─ claude     [ claude ]
-└─ terminal   [ shell ]              ← you land here, ready to work
+└─ terminal   [ shell ]              you land here, ready to work
 ```
 
 The rules fit in your head: top-level keys are tabs, nested objects are
@@ -66,15 +66,15 @@ Leaving? `rig uninstall` removes every trace, keeping your stack files.
 ## The menu
 
 Your stacks live where everything else on your desktop lives — in the
-Omarchy menu, under *Trigger → Rig*.
+Omarchy menu, under *Trigger*.
 
-|                              |                                                     |
-| ---------------------------- | --------------------------------------------------- |
-| <kbd>SUPER</kbd>+<kbd>R</kbd> | Open your stacks in the menu                       |
-| type                          | Search                                             |
-| <kbd>Enter</kbd>              | Bring the stack up (opening Herdr if needed) — or jump to it     |
-| ✓                             | This stack is running                              |
-| `＋ New`                      | Name a stack, get a working template in your editor |
+| In the menu                   | What happens                                                 |
+| ----------------------------- | ------------------------------------------------------------ |
+| <kbd>SUPER</kbd>+<kbd>R</kbd> | Open your stacks in the menu                                 |
+| type                          | Search                                                       |
+| <kbd>Enter</kbd>              | Bring the stack up (opening Herdr if needed) — or jump to it |
+| ✓                             | This stack is running                                        |
+| `＋ New`                      | Name a stack, get a working template in your editor          |
 
 And because stacks are ordinary menu entries, you don't even need
 <kbd>SUPER</kbd>+<kbd>R</kbd>: open the Omarchy menu anywhere, type the
