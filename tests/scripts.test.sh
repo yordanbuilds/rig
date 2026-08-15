@@ -111,6 +111,21 @@ check "list surfaces plugin errors in the terminal" grep -q "no running Herdr se
 check "list exits nonzero on error" test "$rc" -ne 0
 rm -f "$SB/list.out"
 
+# A plugin response slower than 2 s must still land (there used to be a hard
+# 2 s ceiling that falsely reported "no response from the shell plugin").
+fresh_sandbox
+printf '[]' >"$SB/list.out"
+cat >"$SB/bin/omarchy-shell" <<SHIM
+#!/usr/bin/env bash
+echo "omarchy-shell \$*" >>"$LOG"
+out=\$(grep -o '"out":"[^"]*"' <<<"\$5" | cut -d'"' -f4)
+( sleep 2.3; cat "${SB}/list.out" >"\$out" ) &
+echo listing
+SHIM
+chmod +x "$SB/bin/omarchy-shell"
+out=$(rig list)
+check "list waits out a slow plugin response" test "$out" = "[]"
+
 # --- rig-menu-sync -----------------------------------------------------------
 fresh_sandbox
 printf '{ "root": "/r", "t": "x" }' >"$SB/.config/rig/stacks/acme.json"

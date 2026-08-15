@@ -25,6 +25,19 @@ USAGE
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
+wait_for() { # <test-flag> <path> <timeout-ms> — poll a file, fast first, then back off
+  local op="$1" path="$2" timeout_ms="$3" waited=0 step
+  local ramp=(5 5 10 10 20 20 30 50 50 100)
+  while :; do
+    test "$op" "$path" && return 0
+    (( waited >= timeout_ms )) && return 1
+    step=${ramp[0]}
+    (( ${#ramp[@]} > 1 )) && ramp=("${ramp[@]:1}")
+    sleep "0.$(printf '%03d' "$step")"
+    (( waited += step ))
+  done
+}
+
 call() { # <method> <json-arg>
   local out
   out=$(omarchy-shell shell call "$ID" "$1" "$2") || die "omarchy-shell call failed — is the shell running?"
@@ -44,8 +57,7 @@ call_wait() { # <method> <json-arg>
   : >"$result"
   arg="${2%\}},\"out\":\"$result\"}"
   call "$1" "$arg" >/dev/null
-  for _ in $(seq 6000); do [[ -s $result ]] && break; sleep 0.1; done
-  [[ -s $result ]] || { rm -f "$result"; die "no response from the shell plugin"; }
+  wait_for -s "$result" 600000 || { rm -f "$result"; die "no response from the shell plugin"; }
   status=$(head -1 "$result")
   msg=$(tail -n +2 "$result")
   rm -f "$result"
@@ -111,8 +123,7 @@ case "$cmd" in
     trap 'rm -f "$out"' EXIT
     : > "$out"
     call list "{\"out\":\"$out\",\"format\":\"$fmt\"}" >/dev/null
-    for _ in $(seq 40); do [[ -s "$out" ]] && break; sleep 0.05; done
-    [[ -s "$out" ]] || die "no response from the shell plugin"
+    wait_for -s "$out" 15000 || die "no response from the shell plugin"
     if grep -q '^{"error":' "$out"; then
       msg=$(grep -o '"error":"[^"]*"' "$out" | head -1 | cut -d'"' -f4)
       die "$msg"
@@ -129,8 +140,7 @@ case "$cmd" in
     trap 'rm -f "$sel" "$done_f"' EXIT
     omarchy-shell shell summon omarchy.menu \
       "{\"mode\":\"input\",\"prompt\":\"New stack\",\"selectionFile\":\"$sel\",\"doneFile\":\"$done_f\"}" >/dev/null
-    for _ in $(seq 600); do [[ -e "$done_f" ]] && break; sleep 0.1; done
-    [[ -e "$done_f" ]] || die "no response from the menu"
+    wait_for -e "$done_f" 60000 || die "no response from the menu"
     name=$(cat "$sel" 2>/dev/null || true)
     [[ -n "$name" ]] || exit 0   # cancelled
     exec "$0" new "$name"
