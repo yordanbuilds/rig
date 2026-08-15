@@ -148,7 +148,7 @@ with the long pane form:
 | ------- | -------------------------------------------------------------------- |
 | `run`   | The command                                                          |
 | `after` | Wait for the named pane — anywhere in the stack — to become ready    |
-| `ready` | Optional output pattern, for the rare process that needs precision   |
+| `ready` | Optional: text in the output that marks the pane ready               |
 
 A pane counts as ready at the first of:
 
@@ -158,8 +158,8 @@ A pane counts as ready at the first of:
   ready when its output stops
 - **two minutes pass** — the gate times out and the pane starts anyway
 
-When the heuristics guess wrong for a process, `ready` pins the moment
-exactly — dependents release as soon as the text appears in its output:
+If those rules pick wrong for a process, set `ready` — panes waiting on
+it start as soon as that text appears in its output:
 
 ```json
 "stripe": {
