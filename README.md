@@ -63,16 +63,15 @@ Leaving? `rig uninstall` removes every trace, keeping your stack files.
 
 ## The menu
 
-Your stacks live in the Omarchy menu itself — real menu entries under
-*Trigger → Rig*, not a lookalike. <kbd>SUPER</kbd>+<kbd>R</kbd> opens the
-menu right there: type to search, <kbd>Enter</kbd> to build a stack or
-jump to it if it's already running. Running stacks carry a ✓, checked
-live every time the menu opens. `＋ New` asks for a name and drops you
-straight into your editor with a working template.
+Your stacks live where everything else on your desktop lives — in the
+Omarchy menu, under *Trigger → Rig*. <kbd>SUPER</kbd>+<kbd>R</kbd> takes
+you straight there: type to search, <kbd>Enter</kbd> to bring a stack up,
+or to jump to it if it's already running. Running stacks carry a ✓.
+`＋ New` asks for a name and opens your editor with a working template.
 
 Stacks are just files in `~/.config/rig/stacks/` — the filename is the
-stack name. `rig new` keeps the menu in sync automatically; if you drop
-files in by hand, `rig sync` catches the menu up.
+stack name. `rig new` keeps the menu in sync; dropped a file in by hand?
+`rig sync`.
 
 ## The CLI
 
