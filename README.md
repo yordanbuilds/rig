@@ -96,8 +96,8 @@ rig list                      JSON status of every stack, for scripting
 rig sync                      put hand-dropped stack files on the menu
 ```
 
-Every command is idempotent — `rig acme` on a running stack simply takes
-you there.
+Commands are safe to repeat — `rig acme` on a running stack doesn't
+build a second one, it takes you there.
 
 ## Stack files
 
