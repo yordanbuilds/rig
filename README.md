@@ -1,6 +1,6 @@
 # Rig
 
-![Rig — project stacks for Herdr](preview.png)
+![Rig in action](demo.gif)
 
 **Project stacks for [Herdr](https://herdr.dev). `rig acme` — and the whole workspace is up.**
 
@@ -45,8 +45,6 @@ The rules fit in your head: top-level keys are tabs, nested objects are
 panes, a string is a command, `null` is an empty terminal. That's the whole
 format. No daemon, no YAML, no dependencies — just a small plugin living in
 your Omarchy shell.
-
-![Rig in action](demo.gif)
 
 ## Installation
 
