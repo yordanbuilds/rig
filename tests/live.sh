@@ -10,7 +10,15 @@ DIR="$HOME/.config/rig/stacks"
 FILE="$DIR/$STACK.json"
 
 herdr workspace list >/dev/null 2>&1 || { echo "skip: no running Herdr server"; exit 0; }
-omarchy-shell shell call yordanbuilds.rig status '' >/dev/null 2>&1 || { echo "skip: rig plugin not loaded"; exit 0; }
+# A call to a plugin the shell has never heard of answers "unknown" and exits 0,
+# so the answer is what has to be checked, not the status. Getting this wrong
+# ran the whole smoke against nothing — and its cleanup wrote menu entries for
+# a plugin that wasn't installed.
+loaded=$(omarchy-shell shell call yordanbuilds.rig status '' 2>/dev/null || true)
+case $loaded in
+  closed | open) ;;
+  *) echo "skip: rig plugin not loaded"; exit 0 ;;
+esac
 [[ -e $FILE ]] && { echo "abort: $FILE already exists"; exit 1; }
 
 fail() { echo "FAIL: $*" >&2; cleanup; exit 1; }
