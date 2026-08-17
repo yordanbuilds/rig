@@ -56,18 +56,24 @@ omarchy plugin add https://github.com/yordanbuilds/rig.git --enable
 
 That's the whole thing. On first load, Rig sets itself up:
 
-- <kbd>SUPER</kbd>+<kbd>R</kbd> opens your stacks in the Omarchy menu
 - **Rig** appears in the Omarchy menu, under _Trigger_
 - the `rig` command lands on your PATH
 
-Everything setup adds is marked and yours — edit or remove any of it, and
-Rig won't put it back. If <kbd>SUPER</kbd>+<kbd>R</kbd> was already yours,
-Rig leaves it alone — bind any key you like in
-`~/.config/hypr/bindings.lua`:
+Your keys stay yours — Rig binds nothing on its own. While no shortcut
+exists, the _Rig_ menu carries one extra row, **Add SUPER+R shortcut**, and
+picking it writes the binding; `rig bind-key` does the same from a
+terminal. Either way, if <kbd>SUPER</kbd>+<kbd>R</kbd> already belongs to
+something else, Rig says so and takes nothing. Once the shortcut exists the
+row is gone, having nothing left to offer.
+
+Prefer another key? Write it yourself in `~/.config/hypr/bindings.lua`:
 
 ```lua
 o.bind("SUPER + SHIFT + R", "Rig", "omarchy-shell shell toggle omarchy.menu '{\"menu\":\"trigger.rig\"}'")
 ```
+
+Everything Rig adds is marked and yours — edit or remove any of it, and
+Rig won't put it back.
 
 Updating? `omarchy plugin update yordanbuilds.rig && omarchy restart shell`.
 
@@ -87,6 +93,7 @@ Your stacks are entries in the Omarchy menu, under _Trigger_.
 | <kbd>Enter</kbd>              | Bring the stack up (opening Herdr if needed) — or jump to it |
 | ✓                             | This stack is running                                        |
 | `＋ New`                      | Name a stack, get a working template in your editor          |
+| `󰌌 Add SUPER+R shortcut`      | Bind the key — only while no shortcut exists                 |
 
 Because stacks are ordinary menu entries, they are searchable from the
 Omarchy menu itself: open it anywhere, type the project's name, and press
@@ -104,6 +111,7 @@ rig kill acme                 close its workspace
 rig new widgets --from acme   clone a stack definition into your editor
 rig list                      JSON status of every stack, for scripting
 rig sync                      put hand-dropped stack files on the menu
+rig bind-key                  bind SUPER+R to the stack menu
 ```
 
 Commands are safe to repeat — `rig acme` on a running stack doesn't

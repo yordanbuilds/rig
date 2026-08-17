@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # rig-setup — one-time omakase setup, run by the plugin on first load.
-# Installs the CLI symlink, the SUPER+R keybinding, and the Omarchy menu
-# entry. Idempotent via ~/.config/rig/.setup-done; --force re-runs it.
-# Everything it writes is marked and reversible (see `rig uninstall`).
+# Installs the CLI symlink and the stacks directory; the menu entries follow
+# from rig-menu-sync, which the caller runs next. Keys stay the user's — the
+# SUPER+R shortcut is opt-in through `rig bind-key` and never taken here.
+# Idempotent via ~/.config/rig/.setup-done; --force re-runs it. Everything it
+# writes is marked and reversible (see `rig uninstall`).
 set -euo pipefail
 
 SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 PLUGIN_DIR="$(dirname "$(dirname "$SCRIPT")")"
 FLAG="$HOME/.config/rig/.setup-done"
-BINDINGS="$HOME/.config/hypr/bindings.lua"
 [[ -e $FLAG && ${1:-} != --force ]] && exit 0
 
 notify() { command -v omarchy-notification-send >/dev/null 2>&1 && omarchy-notification-send "$1" "$2" || true; }
@@ -19,24 +20,7 @@ mkdir -p "$HOME/.config/rig/stacks"
 mkdir -p "$HOME/.local/bin"
 [[ -e "$HOME/.local/bin/rig" ]] || ln -s "$PLUGIN_DIR/bin/rig" "$HOME/.local/bin/rig"
 
-# --- Keybinding: SUPER+R, only if genuinely free -----------------------------
-bind_note="Press SUPER+R"
-if ! grep -q '>>> rig >>>' "$BINDINGS" 2>/dev/null; then
-  taken=$(hyprctl -j binds 2>/dev/null |
-    jq '[.[] | select(.modmask == 64 and (.key | ascii_upcase == "R"))] | length' 2>/dev/null || echo 0)
-  if [[ ${taken:-0} -gt 0 ]]; then
-    bind_note="SUPER+R is taken — bind your own key (see README)"
-  else
-    cat >>"$BINDINGS" <<'EOF'
-
--- >>> rig >>>  Added once by Rig setup — yours to edit or remove.
-o.bind("SUPER + R", "Rig", "omarchy-shell shell toggle omarchy.menu '{\"menu\":\"trigger.rig\"}'")
--- <<< rig <<<
-EOF
-  fi
-fi
-
 # Menu entries are owned by rig-menu-sync (the caller runs it after setup).
 
 touch "$FLAG"
-notify "Rig is ready" "$bind_note"
+notify "Rig is ready" "Your stacks are in the Omarchy menu and rig is on your PATH. No key was taken — add the SUPER+R shortcut from the menu when you want it."

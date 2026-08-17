@@ -18,7 +18,8 @@ Usage:
   rig new <name> [--from <stack>]   create a stack file and open it in your editor
   rig list [--json]         your stacks and what's running
   rig sync                  refresh Rig's entries in the Omarchy menu
-  rig setup                 re-run first-load setup (binding, menu, symlink)
+  rig bind-key              bind SUPER+R to the stack menu
+  rig setup                 re-run first-load setup (menu, symlink)
   rig uninstall             remove Rig and everything setup added
 USAGE
 }
@@ -79,7 +80,7 @@ cmd="${1:-}"
 case "$cmd" in
   "") exec omarchy-shell shell toggle omarchy.menu '{"menu":"trigger.rig"}' ;;
   -h|--help) usage; exit 0 ;;
-  up|kill|new|list|sync|new-dialog|setup|uninstall) shift ;;
+  up|kill|new|list|sync|new-dialog|bind-key|setup|uninstall) shift ;;
   *) cmd=up ;;   # sugar: rig <stack>
 esac
 
@@ -145,13 +146,17 @@ case "$cmd" in
     [[ -n "$name" ]] || exit 0   # cancelled
     exec "$0" new "$name"
     ;;
+  bind-key)
+    script="$(readlink -f "${BASH_SOURCE[0]}")"
+    exec "$(dirname "$script")/rig-bind-key"
+    ;;
   setup)
     script="$(readlink -f "${BASH_SOURCE[0]}")"
     "$(dirname "$script")/rig-setup" --force
     exec "$(dirname "$script")/rig-menu-sync"
     ;;
   uninstall)
-    echo "This removes Rig: the plugin, the SUPER+R binding, the menu entries, and the CLI."
+    echo "This removes Rig: the plugin, the menu entries, the CLI, and the SUPER+R binding if you added one."
     confirm "Remove Rig?" || die "aborted"
     if confirm "Also delete your stack files in ~/.config/rig/stacks/?"; then stacks_reply=y; else stacks_reply=n; fi
     sed -i '/>>> rig >>>/,/<<< rig <<</d' "$HOME/.config/hypr/bindings.lua" 2>/dev/null || true

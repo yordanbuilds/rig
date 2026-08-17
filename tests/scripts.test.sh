@@ -138,6 +138,16 @@ check "sync writes the stack row" grep -q '"trigger.rig.stack-acme"' "$MENU"
 check "sync slugifies dotted names in ids" grep -q '"trigger.rig.stack-my-app"' "$MENU"
 check "sync keeps dotted names in labels" grep -q '"label": "my.app"' "$MENU"
 check "sync writes the New row" grep -q '"trigger.rig.new"' "$MENU"
+check "sync writes the shortcut row" grep -q '"trigger.rig.bind-key"' "$MENU"
+# That guard is the whole consent story in the menu: it has to answer "show
+# me" while no binding exists and "hide me" the moment one does. Run the
+# expression the menu would run, against the sandbox HOME.
+guard=$(grep -o '"when": "[^"]*"' "$MENU" | head -1 | cut -d'"' -f4)
+check "shortcut row is guarded" test -n "$guard"
+check "shortcut row shows while the key is unbound" bash -c "$guard"
+printf -- '\n-- >>> rig >>>\nbind\n-- <<< rig <<<\n' >>"$SB/.config/hypr/bindings.lua"
+check "shortcut row hides once the binding exists" bash -c "! { $guard; }"
+sed -i '/>>> rig >>>/,/<<< rig <<</d' "$SB/.config/hypr/bindings.lua"
 rig-menu-sync
 check "sync is idempotent" test "$(grep -c 'trigger.rig.stack-acme' "$MENU")" = 1
 rm "$SB/.config/rig/stacks/acme.json"
@@ -152,21 +162,37 @@ fresh_sandbox
 echo 0 >"$SB/jq.out"
 rig-setup
 BINDINGS="$SB/.config/hypr/bindings.lua"
-check "setup writes the marked bind block" grep -q '>>> rig >>>' "$BINDINGS"
-check "setup binds SUPER+R to the menu" grep -q 'SUPER + R' "$BINDINGS"
 check "setup links the CLI" test -L "$SB/.local/bin/rig"
+check "setup makes the stacks directory" test -d "$SB/.config/rig/stacks"
 check "setup drops the run-once flag" test -e "$SB/.config/rig/.setup-done"
+# Setup is invisible until sought: it never reaches for a key, free or not.
+check "setup takes no keybinding" bash -c "! grep -q '>>> rig >>>' '$BINDINGS'"
+check "setup does not even ask what is bound" bash -c "! grep -q hyprctl '$LOG'"
+check "setup says where the shortcut waits" logged 'add the SUPER+R shortcut from the menu'
 rig-setup
-check "setup is a no-op on second run" test "$(grep -c '>>> rig >>>' "$BINDINGS")" = 1
-sed -i '/>>> rig >>>/,/<<< rig <<</d' "$BINDINGS"
-rig-setup
-check "setup respects a user-deleted bind block" bash -c "! grep -q '>>> rig >>>' '$BINDINGS'"
+check "setup is a no-op on second run" test "$(grep -c 'Rig is ready' "$LOG")" = 1
+
+# --- rig-bind-key ------------------------------------------------------------
+# No tty in the tests, so bind-key reports through notifications; stderr is
+# redirected to keep that path deterministic wherever the suite runs.
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+BINDINGS="$SB/.config/hypr/bindings.lua"
+rig bind-key >/dev/null 2>&1
+check "bind-key writes the marked bind block" grep -q '>>> rig >>>' "$BINDINGS"
+check "bind-key binds SUPER+R to the menu" grep -q 'SUPER + R' "$BINDINGS"
+check "bind-key notifies that the shortcut is live" logged 'omarchy-notification-send Shortcut added SUPER+R opens Rig.'
+rig bind-key >/dev/null 2>&1
+check "bind-key is idempotent" test "$(grep -c '>>> rig >>>' "$BINDINGS")" = 1
+check "bind-key says so when it is already bound" logged 'SUPER+R already opens Rig.'
 
 fresh_sandbox
 echo 1 >"$SB/jq.out"
-rig-setup
-check "setup skips the bind when SUPER+R is taken" bash -c "! grep -q '>>> rig >>>' '$SB/.config/hypr/bindings.lua'"
-check "setup notifies about the taken key" logged 'omarchy-notification-send Rig is ready SUPER+R is taken'
+BINDINGS="$SB/.config/hypr/bindings.lua"
+rig bind-key >/dev/null 2>&1; rc=$?
+check "bind-key refuses to steal a taken key" bash -c "! grep -q '>>> rig >>>' '$BINDINGS'"
+check "bind-key exits nonzero when the key is taken" test "$rc" -ne 0
+check "bind-key names the fallback when the key is taken" logged 'omarchy-notification-send SUPER+R is taken'
 
 # --- rig-ensure-herdr --------------------------------------------------------
 fresh_sandbox

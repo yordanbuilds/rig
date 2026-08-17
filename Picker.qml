@@ -41,8 +41,9 @@ Item {
   HerdrRunner { id: runner }
   HerdrRunner { id: prepRunner }
 
-  // First-load omakase setup (CLI symlink, keybinding, menu block), then a
-  // menu sync so manually dropped stack files appear after a shell restart.
+  // First-load omakase setup (CLI symlink, stacks dir — no keybinding, that
+  // one is asked for), then a menu sync so manually dropped stack files
+  // appear after a shell restart.
   Process {
     id: setupProcess
     command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/yordanbuilds.rig/bin/rig-setup"]

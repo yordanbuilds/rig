@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# rig-bind-key — bind SUPER+R to the Rig menu, when you ask for it.
+# Setup never takes a key; this is the only thing that does. Reached from the
+# Omarchy menu ("Add SUPER+R shortcut", shown while no shortcut exists) or as
+# `rig bind-key`. The block it appends is marked and reversible (`rig uninstall`).
+set -euo pipefail
+
+BINDINGS="$HOME/.config/hypr/bindings.lua"
+
+notify() { command -v omarchy-notification-send >/dev/null 2>&1 && omarchy-notification-send "$1" "$2" || true; }
+
+# A terminal run says it in the terminal; a menu run says it in a notification.
+report() { # <title> <message>
+  if [[ -t 2 ]]; then printf '\033[1;32m✓\033[0m %s\n' "$2"; else notify "$1" "$2"; fi
+}
+
+refuse() { # <title> <message>
+  if [[ -t 2 ]]; then printf 'rig: %s\n' "$2" >&2; else notify "$1" "$2"; fi
+  exit 1
+}
+
+if grep -q '>>> rig >>>' "$BINDINGS" 2>/dev/null; then
+  report "Rig" "SUPER+R already opens Rig."
+  exit 0
+fi
+
+taken=$(hyprctl -j binds 2>/dev/null |
+  jq '[.[] | select(.modmask == 64 and (.key | ascii_upcase == "R"))] | length' 2>/dev/null || echo 0)
+if [[ ${taken:-0} -gt 0 ]]; then
+  refuse "SUPER+R is taken" "Something else owns SUPER+R — bind Rig to a key you like (see README)."
+fi
+
+mkdir -p "$(dirname "$BINDINGS")"
+cat >>"$BINDINGS" <<'EOF'
+
+-- >>> rig >>>  Added at your request — yours to edit or remove.
+o.bind("SUPER + R", "Rig", "omarchy-shell shell toggle omarchy.menu '{\"menu\":\"trigger.rig\"}'")
+-- <<< rig <<<
+EOF
+report "Shortcut added" "SUPER+R opens Rig."

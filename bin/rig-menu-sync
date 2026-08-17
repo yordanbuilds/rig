@@ -10,6 +10,10 @@ MENU="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
 STACKS="$HOME/.config/rig/stacks"
 BEGIN='// >>> rig menu >>>  Managed by rig-menu-sync — do not edit inside.'
 END='// <<< rig menu <<<'
+# The shortcut row offers the key Rig never takes by itself, and shows only
+# while no bind block exists. Cheap on purpose: the menu batches every `when:`
+# into one bash script, and that script's speed is how fast the menu opens.
+UNBOUND="! grep -q '>>> rig >>>' ~/.config/hypr/bindings.lua"
 
 block() {
   printf '  %s\n' "$BEGIN"
@@ -23,6 +27,8 @@ block() {
       "$id" "$name" "$name" "'\\\"label\\\":\\\"$name\\\"'"
   done
   printf '  "trigger.rig.new": { "icon": "＋", "label": "New", "action": "rig new-dialog" },\n'
+  printf '  "trigger.rig.bind-key": { "icon": "󰌌", "label": "Add SUPER+R shortcut", "action": "rig bind-key", "when": "%s" },\n' \
+    "$UNBOUND"
   printf '  %s\n' "$END"
 }
 
