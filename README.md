@@ -54,15 +54,12 @@ Rig needs [Omarchy](https://omarchy.org) 4 or newer — Herdr ships with it.
 omarchy plugin add https://github.com/yordanbuilds/rig.git --enable
 ```
 
-That's the whole thing. On first load, Rig sets itself up:
+On first load:
 
 - **Rig** appears in the Omarchy menu, under _Trigger_
 - the `rig` command lands on your PATH
-
-Rig doesn't bind a key on its own — the first load asks whether to add the
-<kbd>SUPER</kbd>+<kbd>R</kbd> shortcut. Decline, and **Add SUPER+R shortcut**
-waits in the _Rig_ menu (or run `rig bind-key`). If the key is taken, Rig
-doesn't ask and changes nothing. Once bound, the row disappears.
+- Rig asks about the <kbd>SUPER</kbd>+<kbd>R</kbd> shortcut — decline, and
+  **Add SUPER+R shortcut** waits in the menu (or `rig bind-key`)
 
 Prefer another key? Write it yourself in `~/.config/hypr/bindings.lua`:
 
@@ -70,13 +67,11 @@ Prefer another key? Write it yourself in `~/.config/hypr/bindings.lua`:
 o.bind("SUPER + SHIFT + R", "Rig", "omarchy-shell shell toggle omarchy.menu '{\"menu\":\"trigger.rig\"}'")
 ```
 
-Everything Rig adds is marked and yours — edit or remove any of it, and
-Rig won't put it back.
+Everything Rig adds is marked and yours.
 
 Updating? `omarchy plugin update yordanbuilds.rig && omarchy restart shell`.
 
-Leaving? `rig uninstall` removes everything setup added and asks
-whether your stack files should go too.
+Leaving? `rig uninstall` removes it all and asks about your stack files.
 
 ## Usage
 
