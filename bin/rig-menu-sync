@@ -17,7 +17,7 @@ UNBOUND="! grep -q '>>> rig >>>' ~/.config/hypr/bindings.lua"
 
 block() {
   printf '  %s\n' "$BEGIN"
-  printf '  "trigger.rig": { "icon": "󰞷", "label": "Rig", "aliases": ["rig", "stacks"] },\n'
+  printf '  "trigger.rig": { "icon": "󰞷", "label": "Rig" },\n'
   local f name id
   for f in "$STACKS"/*.json; do
     [[ -e $f ]] || continue

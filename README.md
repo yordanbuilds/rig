@@ -69,7 +69,7 @@ o.bind("SUPER + SHIFT + R", "Rig", "omarchy-shell shell toggle omarchy.menu '{\"
 
 Everything Rig adds is marked and yours.
 
-Updating? `omarchy plugin update yordanbuilds.rig && omarchy restart shell`.
+Updating? `omarchy plugin update yordanbuilds.rig`.
 
 Leaving? `rig uninstall` removes it all and asks about your stack files.
 

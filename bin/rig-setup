@@ -3,13 +3,15 @@
 # Installs the CLI symlink and the stacks directory; the menu entries follow
 # from rig-menu-sync, which the caller runs next. Keys stay the user's: the
 # first load asks about SUPER+R through rig-ask-key, and nothing else here
-# ever writes a binding. Idempotent via ~/.config/rig/.setup-done; --force
+# ever writes a binding. Idempotent via ~/.local/state/rig/.setup-done; --force
 # re-runs it. Everything it writes is marked and reversible (`rig uninstall`).
 set -euo pipefail
 
 SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 PLUGIN_DIR="$(dirname "$(dirname "$SCRIPT")")"
-FLAG="$HOME/.config/rig/.setup-done"
+# State, not config: the flag records what ran, and nothing about it is yours
+# to edit.
+FLAG="$HOME/.local/state/rig/.setup-done"
 first_run=true
 [[ -e $FLAG ]] && first_run=false
 [[ $first_run == false && ${1:-} != --force ]] && exit 0
@@ -19,11 +21,18 @@ notify() { command -v omarchy-notification-send >/dev/null 2>&1 && omarchy-notif
 mkdir -p "$HOME/.config/rig/stacks"
 
 # --- CLI symlink -------------------------------------------------------------
+# A `rig` that isn't a symlink is something you put there, and it stays yours;
+# a link to an older checkout is ours to repoint.
 mkdir -p "$HOME/.local/bin"
-[[ -e "$HOME/.local/bin/rig" ]] || ln -s "$PLUGIN_DIR/bin/rig" "$HOME/.local/bin/rig"
+if [[ -e "$HOME/.local/bin/rig" && ! -L "$HOME/.local/bin/rig" ]]; then
+  echo "rig: $HOME/.local/bin/rig is not our symlink — left it alone"
+else
+  ln -sfn "$PLUGIN_DIR/bin/rig" "$HOME/.local/bin/rig"
+fi
 
 # Menu entries are owned by rig-menu-sync (the caller runs it after setup).
 
+mkdir -p "$(dirname "$FLAG")"
 touch "$FLAG"
 
 # The key question comes to you, once, seconds after the install: rig-ask-key

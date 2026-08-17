@@ -159,6 +159,9 @@ check "sync slugifies dotted names in ids" grep -q '"trigger.rig.stack-my-app"' 
 check "sync keeps dotted names in labels" grep -q '"label": "my.app"' "$MENU"
 check "sync writes the New row" grep -q '"trigger.rig.new"' "$MENU"
 check "sync writes the shortcut row" grep -q '"trigger.rig.bind-key"' "$MENU"
+# Aliases are reserved for names users already type; a new entry earns its way
+# in through its label and id (docs/menu.md).
+check "sync claims no aliases" bash -c "! grep -q 'aliases' '$MENU'"
 # That guard is the whole consent story in the menu: it has to answer "show
 # me" while no binding exists and "hide me" the moment one does. Run the
 # expression the menu would run, against the sandbox HOME.
@@ -184,7 +187,9 @@ rig-setup
 BINDINGS="$SB/.config/hypr/bindings.lua"
 check "setup links the CLI" test -L "$SB/.local/bin/rig"
 check "setup makes the stacks directory" test -d "$SB/.config/rig/stacks"
-check "setup drops the run-once flag" test -e "$SB/.config/rig/.setup-done"
+# The flag records what ran — that is state, not something you configure.
+check "setup drops the run-once flag in state" test -e "$SB/.local/state/rig/.setup-done"
+check "setup writes no flag under config" bash -c "! test -e '$SB/.config/rig/.setup-done'"
 # Setup still writes no key of its own — it asks, in a window, and only the
 # answer can bind. The question is a floating terminal running the prompt.
 check "setup takes no keybinding" bash -c "! grep -q '>>> rig >>>' '$BINDINGS'"
@@ -220,6 +225,23 @@ echo 0 >"$SB/jq.out"
 RIG_ASK_LAUNCHER=rig-no-such-launcher rig-setup
 check "a missing launcher opens no window" bash -c "! grep -q 'floating-terminal' '$LOG'"
 check "a missing launcher keeps the menu pointer" logged 'add the SUPER+R shortcut from the menu'
+
+# --- rig-setup: the CLI symlink ---------------------------------------------
+# A link to a checkout Rig has outgrown is ours to repoint; a real file at that
+# name is something you put there, and it stays yours.
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+ln -s /nowhere/old-checkout/bin/rig "$SB/.local/bin/rig"
+rig-setup
+check "setup repoints a stale link" test "$(readlink "$SB/.local/bin/rig")" = "$HERE/bin/rig"
+
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+printf '#!/bin/sh\necho mine\n' >"$SB/.local/bin/rig"
+out=$(rig-setup 2>&1)
+check "setup leaves a file it did not make" grep -q 'echo mine' "$SB/.local/bin/rig"
+check "setup says it left that file alone" grep -q 'not our symlink' <<<"$out"
+check "setup still finishes around it" test -e "$SB/.local/state/rig/.setup-done"
 
 # --- rig-ask-key --prompt ----------------------------------------------------
 # The question itself, as it runs inside the floating terminal. No tty here, so
@@ -298,15 +320,28 @@ echo "omarchy \$*" >>"$LOG"
 SHIM
 chmod +x "$SB/bin/omarchy"
 printf -- '-- mine\n-- >>> rig >>>\nbind\n-- <<< rig <<<\n' >"$SB/.config/hypr/bindings.lua"
-printf '{\n  "trigger.rig": {},\n}\n' >"$SB/.config/omarchy/extensions/omarchy-menu.jsonc"
+MENU="$SB/.config/omarchy/extensions/omarchy-menu.jsonc"
+# A managed block, and — outside it — a trigger.rig row written by hand. The
+# menu file belongs to the user; uninstall takes back only what it wrote.
+{
+  printf '{\n'
+  printf '  "trigger.rig.handwritten": {"label":"Mine"},\n'
+  printf '  // >>> rig menu >>>  Managed by rig-menu-sync — do not edit inside.\n'
+  printf '  "trigger.rig": { "icon": "x", "label": "Rig" },\n'
+  printf '  // <<< rig menu <<<\n'
+  printf '}\n'
+} >"$MENU"
 ln -s /dev/null "$SB/.local/bin/rig"
-touch "$SB/.config/rig/.setup-done"
+mkdir -p "$SB/.local/state/rig"
+touch "$SB/.local/state/rig/.setup-done"
 printf '{ "root": "/r", "t": "x" }' >"$SB/.config/rig/stacks/keepme.json"
 printf 'y\nn\n' | rig uninstall >/dev/null 2>&1
 check "uninstall strips the bind block" bash -c "! grep -q 'rig >>>' '$SB/.config/hypr/bindings.lua'"
 check "uninstall keeps stacks when declined" test -e "$SB/.config/rig/stacks/keepme.json"
 check "uninstall keeps the user's own bindings" grep -q -- '-- mine' "$SB/.config/hypr/bindings.lua"
-check "uninstall strips menu entries" bash -c "! grep -q 'trigger.rig' '$SB/.config/omarchy/extensions/omarchy-menu.jsonc'"
+check "uninstall strips its own menu block" bash -c "! grep -q '\"trigger.rig\":' '$MENU'"
+check "uninstall leaves a hand-written row alone" grep -q 'trigger.rig.handwritten' "$MENU"
+check "uninstall clears the run-once flag" bash -c "! test -e '$SB/.local/state/rig/.setup-done'"
 check "uninstall removes the CLI symlink" bash -c "! test -e '$SB/.local/bin/rig'"
 check "uninstall removes the plugin" logged 'omarchy plugin remove yordanbuilds.rig --yes'
 

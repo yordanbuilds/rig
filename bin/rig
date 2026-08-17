@@ -160,8 +160,10 @@ case "$cmd" in
     confirm "Remove Rig?" || die "aborted"
     if confirm "Also delete your stack files in ~/.config/rig/stacks/?"; then stacks_reply=y; else stacks_reply=n; fi
     sed -i '/>>> rig >>>/,/<<< rig <<</d' "$HOME/.config/hypr/bindings.lua" 2>/dev/null || true
-    sed -i '/>>> rig menu >>>/,/<<< rig menu <<</d; /"trigger\.rig/d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
-    rm -f "$HOME/.local/bin/rig" "$HOME/.config/rig/.setup-done"
+    # Only the marked block. A `trigger.rig` row you wrote by hand outside it
+    # is yours, and stays.
+    sed -i '/>>> rig menu >>>/,/<<< rig menu <<</d' "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" 2>/dev/null || true
+    rm -f "$HOME/.local/bin/rig" "$HOME/.local/state/rig/.setup-done"
     [[ $stacks_reply == y || $stacks_reply == Y ]] && rm -rf "$HOME/.config/rig"
     exec omarchy plugin remove yordanbuilds.rig --yes
     ;;
