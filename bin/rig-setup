@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # rig-setup — one-time omakase setup, run by the plugin on first load.
 # Installs the CLI symlink and the stacks directory; the menu entries follow
-# from rig-menu-sync, which the caller runs next. Keys stay the user's — the
-# SUPER+R shortcut is opt-in through `rig bind-key` and never taken here.
-# Idempotent via ~/.config/rig/.setup-done; --force re-runs it. Everything it
-# writes is marked and reversible (see `rig uninstall`).
+# from rig-menu-sync, which the caller runs next. Keys stay the user's: the
+# first load asks about SUPER+R through rig-ask-key, and nothing else here
+# ever writes a binding. Idempotent via ~/.config/rig/.setup-done; --force
+# re-runs it. Everything it writes is marked and reversible (`rig uninstall`).
 set -euo pipefail
 
 SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 PLUGIN_DIR="$(dirname "$(dirname "$SCRIPT")")"
 FLAG="$HOME/.config/rig/.setup-done"
-[[ -e $FLAG && ${1:-} != --force ]] && exit 0
+first_run=true
+[[ -e $FLAG ]] && first_run=false
+[[ $first_run == false && ${1:-} != --force ]] && exit 0
 
 notify() { command -v omarchy-notification-send >/dev/null 2>&1 && omarchy-notification-send "$1" "$2" || true; }
 
@@ -23,4 +25,16 @@ mkdir -p "$HOME/.local/bin"
 # Menu entries are owned by rig-menu-sync (the caller runs it after setup).
 
 touch "$FLAG"
-notify "Rig is ready" "Your stacks are in the Omarchy menu and rig is on your PATH. No key was taken — add the SUPER+R shortcut from the menu when you want it."
+
+# The key question comes to you, once, seconds after the install: rig-ask-key
+# opens a floating terminal and asks. Nonzero means it stayed quiet — the key
+# is taken, a binding already exists, or there's no launcher to ask through —
+# and then the notification is what points at the menu row instead.
+asked=false
+if [[ $first_run == true ]] && "$PLUGIN_DIR/bin/rig-ask-key"; then asked=true; fi
+
+if [[ $asked == true ]]; then
+  notify "Rig is ready" "Your stacks are in the Omarchy menu and rig is on your PATH."
+else
+  notify "Rig is ready" "Your stacks are in the Omarchy menu and rig is on your PATH. No key was taken — add the SUPER+R shortcut from the menu when you want it."
+fi

@@ -59,9 +59,10 @@ That's the whole thing. On first load, Rig sets itself up:
 - **Rig** appears in the Omarchy menu, under _Trigger_
 - the `rig` command lands on your PATH
 
-Rig doesn't bind a key on its own. Pick **Add SUPER+R shortcut** from the
-_Rig_ menu (or run `rig bind-key`) to add it. If <kbd>SUPER</kbd>+<kbd>R</kbd>
-is taken, Rig tells you and changes nothing. Once bound, the row disappears.
+Rig doesn't bind a key on its own — the first load asks whether to add the
+<kbd>SUPER</kbd>+<kbd>R</kbd> shortcut. Decline, and **Add SUPER+R shortcut**
+waits in the _Rig_ menu (or run `rig bind-key`). If the key is taken, Rig
+doesn't ask and changes nothing. Once bound, the row disappears.
 
 Prefer another key? Write it yourself in `~/.config/hypr/bindings.lua`:
 

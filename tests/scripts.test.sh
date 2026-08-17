@@ -59,7 +59,11 @@ SHIM
 #!/usr/bin/env bash
 exit 1
 SHIM
-  for shim in omarchy-notification-send omarchy-launch-terminal-herdr omarchy-launch-editor jq; do
+  # The floating-terminal launcher is shimmed, never run: a test that pops a
+  # real window is a test nobody can run twice. $SB/bin comes first on PATH,
+  # so this shadows the real launcher wherever the suite runs.
+  for shim in omarchy-notification-send omarchy-launch-terminal-herdr omarchy-launch-editor \
+    omarchy-launch-floating-terminal-with-presentation jq; do
     cat >"$SB/bin/$shim" <<SHIM
 #!/usr/bin/env bash
 echo "$shim \$*" >>"$LOG"
@@ -81,6 +85,17 @@ SHIM
 }
 
 logged() { grep -qF "$1" "$LOG"; }
+
+# The consent window is launched in the background, so its shim lands a moment
+# after the launching script has exited.
+waitlogged() { # <substring>
+  local i
+  for ((i = 0; i < 150; i++)); do
+    grep -qF "$1" "$LOG" && return 0
+    sleep 0.02
+  done
+  return 1
+}
 
 # --- bin/rig: argument forwarding -------------------------------------------
 fresh_sandbox
@@ -170,12 +185,75 @@ BINDINGS="$SB/.config/hypr/bindings.lua"
 check "setup links the CLI" test -L "$SB/.local/bin/rig"
 check "setup makes the stacks directory" test -d "$SB/.config/rig/stacks"
 check "setup drops the run-once flag" test -e "$SB/.config/rig/.setup-done"
-# Setup is invisible until sought: it never reaches for a key, free or not.
+# Setup still writes no key of its own — it asks, in a window, and only the
+# answer can bind. The question is a floating terminal running the prompt.
 check "setup takes no keybinding" bash -c "! grep -q '>>> rig >>>' '$BINDINGS'"
-check "setup does not even ask what is bound" bash -c "! grep -q hyprctl '$LOG'"
-check "setup says where the shortcut waits" logged 'add the SUPER+R shortcut from the menu'
+check "first load asks about the key" waitlogged 'rig-ask-key --prompt'
+check "the ready notification stays" logged 'omarchy-notification-send Rig is ready'
+check "the notification drops the menu pointer once it has asked" \
+  bash -c "! grep -q 'add the SUPER+R shortcut from the menu' '$LOG'"
 rig-setup
 check "setup is a no-op on second run" test "$(grep -c 'Rig is ready' "$LOG")" = 1
+# A forced re-run does the setup work again; it is not a first load, so it
+# never reopens a question that has already been answered.
+rig-setup --force
+check "a forced re-run asks nothing" test "$(grep -c 'rig-ask-key --prompt' "$LOG")" = 1
+
+# A key someone else holds is not Rig's to offer: no window, and the
+# notification goes back to saying where the shortcut waits.
+fresh_sandbox
+echo 1 >"$SB/jq.out"
+rig-setup
+check "a taken key opens no window" bash -c "! grep -q 'floating-terminal' '$LOG'"
+check "a taken key keeps the menu pointer" logged 'add the SUPER+R shortcut from the menu'
+
+# A binding already in place answers the question before it is asked.
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+printf -- '\n-- >>> rig >>>\nbind\n-- <<< rig <<<\n' >>"$SB/.config/hypr/bindings.lua"
+rig-setup
+check "an existing binding opens no window" bash -c "! grep -q 'floating-terminal' '$LOG'"
+
+# No launcher to ask through: fall back to the notification, never to silence.
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+RIG_ASK_LAUNCHER=rig-no-such-launcher rig-setup
+check "a missing launcher opens no window" bash -c "! grep -q 'floating-terminal' '$LOG'"
+check "a missing launcher keeps the menu pointer" logged 'add the SUPER+R shortcut from the menu'
+
+# --- rig-ask-key --prompt ----------------------------------------------------
+# The question itself, as it runs inside the floating terminal. No tty here, so
+# it takes the plain-read path and the answer comes from stdin.
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+BINDINGS="$SB/.config/hypr/bindings.lua"
+out=$(printf 'y\n' | rig-ask-key --prompt 2>&1); rc=$?
+check "the prompt asks in one line" grep -q 'Add the SUPER+R shortcut?' <<<"$out"
+check "yes binds the shortcut" grep -q 'SUPER + R' "$BINDINGS"
+check "yes exits cleanly" test "$rc" -eq 0
+
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+BINDINGS="$SB/.config/hypr/bindings.lua"
+out=$(printf 'n\n' | rig-ask-key --prompt 2>&1); rc=$?
+check "no writes no binding" bash -c "! grep -q '>>> rig >>>' '$BINDINGS'"
+check "no points at the menu row" grep -q 'from the Rig menu' <<<"$out"
+check "no exits cleanly" test "$rc" -eq 0
+
+fresh_sandbox
+echo 0 >"$SB/jq.out"
+out=$(printf '\n' | rig-ask-key --prompt 2>&1)
+check "silence declines" bash -c "! grep -q '>>> rig >>>' '$SB/.config/hypr/bindings.lua'"
+check "silence points at the menu row too" grep -q 'from the Rig menu' <<<"$out"
+
+# The key can go while the window is opening; the prompt checks again before
+# it asks, so it never offers what is no longer free.
+fresh_sandbox
+echo 1 >"$SB/jq.out"
+out=$(printf 'y\n' | rig-ask-key --prompt 2>&1)
+check "a key taken meanwhile is not offered" test -z "$out"
+check "a key taken meanwhile is not bound" \
+  bash -c "! grep -q '>>> rig >>>' '$SB/.config/hypr/bindings.lua'"
 
 # --- rig-bind-key ------------------------------------------------------------
 # No tty in the tests, so bind-key reports through notifications; stderr is
