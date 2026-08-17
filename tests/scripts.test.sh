@@ -229,6 +229,10 @@ echo 0 >"$SB/jq.out"
 BINDINGS="$SB/.config/hypr/bindings.lua"
 out=$(printf 'y\n' | rig-ask-key --prompt 2>&1); rc=$?
 check "the prompt asks in one line" grep -q 'Add the SUPER+R shortcut?' <<<"$out"
+check "the prompt opens with the ready line" grep -q '^Rig is ready$' <<<"$out"
+check "the summary names what setup added" \
+  grep -q '^menu entries · the rig command on your PATH$' <<<"$out"
+check "piped output stays plain" test "$out" = "${out//$'\e'/}"
 check "yes binds the shortcut" grep -q 'SUPER + R' "$BINDINGS"
 check "yes exits cleanly" test "$rc" -eq 0
 
