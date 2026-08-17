@@ -65,9 +65,14 @@ SHIM
 echo "$shim \$*" >>"$LOG"
 SHIM
   done
+  # Drains its input like the real jq before answering from jq.out. A shim that
+  # exits without reading kills the producer upstream with SIGPIPE, and under
+  # set -o pipefail that failure reads as "the key check broke" — intermittently,
+  # depending on which side of the pipe wins the race.
   cat >"$SB/bin/jq" <<SHIM
 #!/usr/bin/env bash
 echo "jq \$*" >>"$LOG"
+[[ -t 0 ]] || cat >/dev/null 2>&1
 cat "${SB}/jq.out" 2>/dev/null || echo 0
 SHIM
   chmod +x "$SB/bin/"*
