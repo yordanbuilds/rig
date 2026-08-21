@@ -259,6 +259,44 @@ check "gate rejects an inline trailing comment"  not menu_parses "$SB/inline.jso
 check "gate rejects a top-level array"           not menu_parses "$SB/array.jsonc"
 check "gate rejects an empty file"               not menu_parses "$SB/empty.jsonc"
 
+# A stack name is a filename, and a filename holds almost anything. Each of
+# these arrives through `rig new-dialog`, which is a free-text prompt. The name
+# lands in four places — the row id, the label, a shell command inside a JSON
+# string, and a grep pattern inside that command — and each needs its own
+# treatment. A space is the likely one; a quote or backslash is the destructive
+# one, because the menu answers an unparseable file by dropping every user row.
+fresh_sandbox
+MENU="$SB/.config/omarchy/extensions/omarchy-menu.jsonc"
+for n in "my project" "it's" 'we"ird' 'back\slash'; do
+  printf '{ "root": "/r" }' >"$SB/.config/rig/stacks/$n.json"
+done
+rig-menu-sync
+check "hostile stack names still parse as JSONC" menu_parses "$MENU"
+check "a spaced name is one shell word in the action" \
+  test "$(menu_field "$MENU" 'trigger.rig.stack-my project' action)" = "rig 'my project'"
+check "a quoted name survives into the label" \
+  test "$(menu_field "$MENU" 'trigger.rig.stack-we"ird' label)" = 'we"ird'
+check "a backslash name survives into the label" \
+  test "$(menu_field "$MENU" 'trigger.rig.stack-back\slash' label)" = 'back\slash'
+check "an apostrophe name yields a runnable checked guard" \
+  bash -c "guard=\$(menu_field '$MENU' \"trigger.rig.stack-it's\" checked) && bash -n <<<\"\$guard\""
+check "every hostile name got its own row" \
+  test "$(grep -c 'trigger.rig.stack-' "$MENU")" = 4
+
+# A filename may hold a newline, and json_escape cannot represent one inside a
+# JSON string. Such a row would fail the gate on every sync — and notify each
+# time, because the file we started from was fine. Drop the row, keep the rest.
+fresh_sandbox
+MENU="$SB/.config/omarchy/extensions/omarchy-menu.jsonc"
+printf '{ "root": "/r" }' >"$SB/.config/rig/stacks/$(printf 'bad\nname').json"
+printf '{ "root": "/r" }' >"$SB/.config/rig/stacks/good.json"
+rig-menu-sync
+check "a control character in a name does not break the menu" menu_parses "$MENU"
+check "the unrepresentable row is skipped" bash -c "! grep -q 'badname' '$MENU'"
+check "its siblings still sync" grep -q '"trigger.rig.stack-good"' "$MENU"
+check "and no complaint is raised for a row we chose to skip" \
+  bash -c "! grep -q 'omarchy-notification-send' '$LOG'"
+
 # --- rig-setup ---------------------------------------------------------------
 fresh_sandbox
 echo 0 >"$SB/jq.out"

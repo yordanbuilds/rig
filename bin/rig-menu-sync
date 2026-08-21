@@ -15,6 +15,16 @@ END='// <<< rig menu <<<'
 # into one bash script, and that script's speed is how fast the menu opens.
 UNBOUND="! grep -q '>>> rig >>>' ~/.config/hypr/bindings.lua"
 
+# JSON string escaping, the same two substitutions bin/rig uses. Backslashes
+# first: escaping the quotes first would then double-escape the backslash that
+# step just added.
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+# The bash twin of Builder.mjs's shellQuote. A stack name reaches the menu
+# inside a shell command inside a JSON string, so it needs both treatments in
+# that order: one shell word first, then escaped for the JSON it sits in.
+shell_quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
 # Mirrors stripJsonc() in Omarchy's shell/plugins/menu/MenuModel.js: whole-line
 # // comments and trailing commas come out, and what is left must decode as a
 # JSON object. A file that fails this contributes no entries at all — the menu
@@ -39,13 +49,20 @@ block() {
   # use; the escaping in this function is what keeps real output parseable.
   if [[ -n ${RIG_MENU_FORCE_BAD_BLOCK:-} ]]; then printf '  "unterminated: {\n'; fi
   printf '  "trigger.rig": { "icon": "󰞷", "label": "Rig" },\n'
-  local f name id
+  local f name id action checked
   for f in "$STACKS"/*.json; do
     [[ -e $f ]] || continue
     name="$(basename "$f" .json)"
-    id="${name//./-}"
-    printf '  "trigger.rig.stack-%s": { "icon": "󰆍", "label": "%s", "action": "rig %s", "checked": "herdr workspace list 2>/dev/null | grep -qF %s" },\n' \
-      "$id" "$name" "$name" "'\\\"label\\\":\\\"$name\\\"'"
+    # A newline or tab cannot be represented inside a JSON string by
+    # json_escape, and a row carrying one would fail the parse gate on every
+    # sync — notifying each time, since the file we started from was fine.
+    # Drop that one row; its siblings still sync.
+    [[ $name != *[[:cntrl:]]* ]] || continue
+    id="$(json_escape "${name//./-}")"
+    action="$(json_escape "rig $(shell_quote "$name")")"
+    checked="$(json_escape "herdr workspace list 2>/dev/null | grep -qF $(shell_quote "\"label\":\"$name\"")")"
+    printf '  "trigger.rig.stack-%s": { "icon": "󰆍", "label": "%s", "action": "%s", "checked": "%s" },\n' \
+      "$id" "$(json_escape "$name")" "$action" "$checked"
   done
   printf '  "trigger.rig.new": { "icon": "＋", "label": "New", "action": "rig new-dialog" },\n'
   printf '  "trigger.rig.bind-key": { "icon": "󰌌", "label": "Add SUPER+R shortcut", "action": "rig bind-key", "when": "%s" },\n' \
