@@ -86,6 +86,34 @@ SHIM
 
 logged() { grep -qF "$1" "$LOG"; }
 
+not() { ! "$@"; }
+
+# The gate the script itself uses, lifted straight out of it rather than copied.
+# A copy here would let these tests keep passing after the script's own answer
+# changed. The sed range takes only the function, so the script body never runs.
+eval "$(sed -n '/^menu_parses() {$/,/^}$/p' "$HERE/bin/rig-menu-sync")"
+
+# Reads one field of one row the way the menu would. Beats grepping for a
+# literal: it proves the value survived JSON decoding, which is the whole point
+# of the escaping. Row id and field go through the environment — as extra argv
+# entries perl would treat them as more input files.
+menu_field() { # <file> <row-id> <field>
+  MF_ID="$2" MF_FIELD="$3" perl -0777 -MJSON::PP -ne '
+    s!^\s*//[^\n]*(\n|$)!!gm; s!,(\s*[}\]])!$1!g;
+    my $d = eval { JSON::PP->new->decode($_) } or exit 1;
+    my $v = $d->{$ENV{MF_ID}}{$ENV{MF_FIELD}};
+    defined $v or exit 1;
+    print $v;
+  ' "$1" 2>/dev/null
+}
+
+# check runs its condition in-process, but a few cases below reach for `bash -c`.
+# A shell function is not inherited by a fresh bash, and an unavailable function
+# under `!` inverts to success — a rejection test that can never fail. Export
+# them so the subshell asks the same question this shell does.
+export -f menu_parses 2>/dev/null || true
+export -f menu_field  2>/dev/null || true
+
 # The consent window is launched in the background, so its shim lands a moment
 # after the launching script has exited.
 waitlogged() { # <substring>
@@ -179,6 +207,57 @@ check "sync drops rows for deleted stacks" bash -c "! grep -q 'stack-acme' '$MEN
 rm "$MENU"
 rig-menu-sync
 check "sync creates a missing menu file" grep -q '"trigger.rig"' "$MENU"
+
+# The menu drops every user row without a word when its extension file does not
+# parse (docs/menu.md), so a bad candidate must never reach the file.
+fresh_sandbox
+MENU="$SB/.config/omarchy/extensions/omarchy-menu.jsonc"
+printf '{\n  "personal.notes": {"label":"Notes"}\n}\n' >"$MENU"
+before="$(cat "$MENU")"
+RIG_MENU_FORCE_BAD_BLOCK=1 rig-menu-sync
+check "a bad candidate never lands" test "$before" = "$(cat "$MENU")"
+check "the user hears about it" logged "Couldn't update the menu"
+
+# A file that was already broken is not ours to complain about. Refusing is
+# still right, but a notification here would fire on every plugin load, every
+# `rig new`, and every Picker refresh — the spam loop the gate exists to avoid.
+fresh_sandbox
+MENU="$SB/.config/omarchy/extensions/omarchy-menu.jsonc"
+printf '{\n  "oops": \n}\n' >"$MENU"
+before="$(cat "$MENU")"
+rig-menu-sync
+check "an already-broken file is left alone" test "$before" = "$(cat "$MENU")"
+check "and stays quiet about it" bash -c "! grep -q 'omarchy-notification-send' '$LOG'"
+
+# The gate has to answer exactly as the menu's own parser does — no stricter, or
+# it refuses files the menu is happy with; no looser, and it lets a wipe through.
+# Every case below was cross-checked against stripJsonc + JSON.parse from the
+# installed MenuModel.js.
+fresh_sandbox
+printf '{ "a": { "label": "x" } }\n'          >"$SB/plain.jsonc"
+printf '{\n  // >>> m >>>\n  "a": 1,\n  // <<< m <<<\n}\n' >"$SB/block.jsonc"
+printf '{\n  "a": 1,\n}\n'                    >"$SB/comma.jsonc"
+printf '{ "a": [1, 2,] }\n'                   >"$SB/bracket.jsonc"
+printf '{ "a": { "label": "back\\\\slash" } }\n' >"$SB/escaped.jsonc"
+printf '{ "a": { "u": "https://x.dev" } }\n'  >"$SB/url.jsonc"
+printf '{ "a": { "icon": "\xf3\xb0\x86\x8d", "label": "caf\xc3\xa9" } }\n' >"$SB/utf8.jsonc"
+printf '{ "a": { "label": "back\\slash" } }\n' >"$SB/badescape.jsonc"
+printf '{ "trigger.we"ird": 1 }\n'            >"$SB/badquote.jsonc"
+printf '{ "a": 1 } // no\n'                   >"$SB/inline.jsonc"
+printf '[1,2]\n'                              >"$SB/array.jsonc"
+: >"$SB/empty.jsonc"
+check "gate accepts a plain object"              menu_parses "$SB/plain.jsonc"
+check "gate accepts our comment block"           menu_parses "$SB/block.jsonc"
+check "gate accepts a trailing comma before }"   menu_parses "$SB/comma.jsonc"
+check "gate accepts a trailing comma before ]"   menu_parses "$SB/bracket.jsonc"
+check "gate accepts a correctly escaped name"    menu_parses "$SB/escaped.jsonc"
+check "gate keeps a // inside a string"          menu_parses "$SB/url.jsonc"
+check "gate accepts nerd-font glyphs and accents" menu_parses "$SB/utf8.jsonc"
+check "gate rejects a bad escape"                not menu_parses "$SB/badescape.jsonc"
+check "gate rejects an unescaped quote"          not menu_parses "$SB/badquote.jsonc"
+check "gate rejects an inline trailing comment"  not menu_parses "$SB/inline.jsonc"
+check "gate rejects a top-level array"           not menu_parses "$SB/array.jsonc"
+check "gate rejects an empty file"               not menu_parses "$SB/empty.jsonc"
 
 # --- rig-setup ---------------------------------------------------------------
 fresh_sandbox
