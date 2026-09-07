@@ -11,8 +11,20 @@ Item {
   property var doneCallback: null
   property var errorCallback: null
   property bool busy: false
-  property string lastStdout: ""
   property var pending: []
+
+  // A step's whole stdout and stderr sit in the shell's memory until the
+  // step ends — so a child that keeps printing is killed once a stream
+  // passes this many bytes, rather than growing the shell until the kernel
+  // does it. Herdr answers in a few hundred bytes; a stack file is smaller.
+  readonly property int outputCap: 1048576
+
+  // Per-step copies of both streams. A collector keeps its last buffer after
+  // a stream ends, so a step that printed nothing would otherwise read what
+  // the previous step printed.
+  property string stdoutText: ""
+  property string stderrText: ""
+  property string overflowed: ""
 
   function run(steps, ctx, onDone, onError) {
     if (root.busy) { root.pending.push({ steps, ctx, onDone, onError }); return }
@@ -41,7 +53,9 @@ Item {
     const step = root.steps[root.index]
     let argv
     try { argv = Builder.substituteTokens(step.argv, root.ctx) } catch (e) { fail(`${step.label}: ${e.message}`); return }
-    root.lastStdout = ""
+    root.stdoutText = ""
+    root.stderrText = ""
+    root.overflowed = ""
     proc.command = argv
     proc.running = true
   }
@@ -52,21 +66,39 @@ Item {
     Qt.callLater(root.startNext)
   }
 
+  // Runs on every chunk a stream delivers. Past the cap the child is killed;
+  // chunks already in the pipe still land afterwards, so the first overflow
+  // is the one reported and the signal is sent once.
+  function guard(stream, collector) {
+    if (root.overflowed) return
+    if (collector.data.byteLength > root.outputCap) {
+      root.overflowed = stream
+      proc.signal(9)
+      return
+    }
+    if (stream === "stdout") root.stdoutText = collector.text
+    else root.stderrText = collector.text
+  }
+
   Process {
     id: proc
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.lastStdout = text }
-    stderr: StdioCollector { id: errOut; waitForEnd: true }
+    stdout: StdioCollector { id: outStream; waitForEnd: false; onDataChanged: root.guard("stdout", outStream) }
+    stderr: StdioCollector { id: errStream; waitForEnd: false; onDataChanged: root.guard("stderr", errStream) }
     onExited: function(exitCode) {
       const step = root.steps[root.index]
-      if (exitCode !== 0) {
-        root.fail(`${step.label} failed (exit ${exitCode}): ` + (errOut.text || root.lastStdout).slice(0, 400))
+      if (root.overflowed) {
+        root.fail(`${step.label}: ${root.overflowed} exceeded ${root.outputCap} bytes, killed`)
         return
       }
-      if (step.collect) root.ctx[step.collect] = root.lastStdout
+      if (exitCode !== 0) {
+        root.fail(`${step.label} failed (exit ${exitCode}): ` + (root.stderrText || root.stdoutText).slice(0, 400))
+        return
+      }
+      if (step.collect) root.ctx[step.collect] = root.stdoutText
       if (step.capture) {
         let parsed
-        try { parsed = JSON.parse(root.lastStdout) } catch (e) {
-          root.fail(`${step.label}: herdr returned non-JSON: ` + root.lastStdout.slice(0, 200)); return
+        try { parsed = JSON.parse(root.stdoutText) } catch (e) {
+          root.fail(`${step.label}: herdr returned non-JSON: ` + root.stdoutText.slice(0, 200)); return
         }
         for (const key in step.capture) {
           const value = Builder.walkPath(parsed, step.capture[key])

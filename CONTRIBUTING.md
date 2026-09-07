@@ -21,11 +21,12 @@ take effect immediately.
 node --test "tests/**/*.test.mjs"  # Builder unit tests
 bash tests/scripts.test.sh          # bash surface, sandboxed — no live session needed
 bash tests/qml-smoke.sh             # Builder inside the real QML engine (needs qt6-declarative)
+bash tests/runner-smoke.sh          # HerdrRunner inside a headless Quickshell (needs quickshell)
 bash tests/live.sh                  # smoke against your running Herdr (skips if down)
 ```
 
-The first three run in CI on every push and pull request; a PR needs them
-green. Please add tests for behavior you change.
+All but the live smoke run in CI on every push and pull request; a PR needs
+them green. Please add tests for behavior you change.
 
 Builder.mjs is loaded by two JavaScript engines: node (tests) and Qt's QML
 engine (the plugin itself). The QML engine parses less of the language — no

@@ -47,6 +47,9 @@ jobs:
   # qs.* yet; the kit is on the path so the same check covers it the day it
   # does. It does not check members reached through a JavaScript expression —
   # see the gate's own comment for where the line falls.
+  #
+  # The same package is the only engine that can load HerdrRunner's Process
+  # and stream parsers, so its smoke runs here too, headless.
   qml-smoke:
     runs-on: ubuntu-latest
     container: archlinux:latest
@@ -69,3 +72,5 @@ jobs:
             *"kit resolved"*) ;;
             *) echo "qmllint did not resolve the shell kit"; exit 1 ;;
           esac
+      - name: HerdrRunner smoke
+        run: bash tests/runner-smoke.sh
