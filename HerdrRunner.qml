@@ -19,12 +19,21 @@ Item {
   // does it. Herdr answers in a few hundred bytes; a stack file is smaller.
   readonly property int outputCap: 1048576
 
+  // A step that has not exited by this deadline is killed the same way, so a
+  // child that never answers — a FIFO where a file was expected, a Herdr
+  // server that stopped replying — cannot hold the runner, and with it every
+  // queued call, until the shell restarts. rig-ensure-herdr legitimately
+  // waits up to ten seconds for the server; the deadline sits well above.
+  property int stepTimeoutMs: 30000
+
   // Per-step copies of both streams. A collector keeps its last buffer after
   // a stream ends, so a step that printed nothing would otherwise read what
   // the previous step printed.
   property string stdoutText: ""
   property string stderrText: ""
   property string overflowed: ""
+  property bool timedOut: false
+  property bool stepActive: false
 
   function run(steps, ctx, onDone, onError) {
     if (root.busy) { root.pending.push({ steps, ctx, onDone, onError }); return }
@@ -56,8 +65,16 @@ Item {
     root.stdoutText = ""
     root.stderrText = ""
     root.overflowed = ""
+    root.timedOut = false
+    root.stepActive = true
+    deadline.restart()
     proc.command = argv
     proc.running = true
+  }
+
+  function settle() {
+    root.stepActive = false
+    deadline.stop()
   }
 
   function fail(message) {
@@ -80,12 +97,31 @@ Item {
     else root.stderrText = collector.text
   }
 
+  Timer {
+    id: deadline
+    interval: root.stepTimeoutMs
+    onTriggered: { root.timedOut = true; proc.signal(9) }
+  }
+
   Process {
     id: proc
     stdout: StdioCollector { id: outStream; waitForEnd: false; onDataChanged: root.guard("stdout", outStream) }
     stderr: StdioCollector { id: errStream; waitForEnd: false; onDataChanged: root.guard("stderr", errStream) }
-    onExited: function(exitCode) {
+    // A binary that cannot start is reported through running alone — no
+    // exited follows — so the step would otherwise wait for one forever.
+    onRunningChanged: {
+      if (proc.running || !root.stepActive) return
       const step = root.steps[root.index]
+      root.settle()
+      root.fail(`${step.label}: could not start ${step.argv[0]}`)
+    }
+    onExited: function(exitCode) {
+      root.settle()
+      const step = root.steps[root.index]
+      if (root.timedOut) {
+        root.fail(`${step.label}: no answer in ${root.stepTimeoutMs / 1000} s, killed`)
+        return
+      }
       if (root.overflowed) {
         root.fail(`${step.label}: ${root.overflowed} exceeded ${root.outputCap} bytes, killed`)
         return

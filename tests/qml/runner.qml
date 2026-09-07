@@ -58,7 +58,32 @@ Item {
   function failing() {
     runner.run([{ label: "boom", argv: ["sh", "-c", "echo nope >&2; exit 3"] }], {},
       ctx => { ok("a non-zero exit must fail", false); recovers() },
-      msg => { ok("exit failure carries its own stderr: " + msg, msg === "boom failed (exit 3): nope\n"); recovers() })
+      msg => { ok("exit failure carries its own stderr: " + msg, msg === "boom failed (exit 3): nope\n"); missing() })
+  }
+
+  // Quickshell never emits exited for a binary that could not start.
+  function missing() {
+    runner.run([{ label: "missing", argv: ["/nonexistent/rig-no-such-binary"] }], {},
+      ctx => { ok("a binary that cannot start must fail", false); hang() },
+      msg => {
+        ok("a missing binary fails at once: " + msg, msg === "missing: could not start /nonexistent/rig-no-such-binary")
+        ok("runner is free after a failed start", !runner.busy)
+        hang()
+      })
+  }
+
+  // A child that never answers is killed at the step deadline.
+  function hang() {
+    const before = runner.stepTimeoutMs
+    runner.stepTimeoutMs = 300
+    runner.run([{ label: "hang", argv: ["sleep", "30"] }], {},
+      ctx => { ok("a silent child must fail", false); runner.stepTimeoutMs = before; recovers() },
+      msg => {
+        ok("a silent child is killed at the deadline: " + msg, msg === "hang: no answer in 0.3 s, killed")
+        ok("runner is free after the deadline", !runner.busy)
+        runner.stepTimeoutMs = before
+        recovers()
+      })
   }
 
   // After a kill and a failure, a clean run still goes through.
