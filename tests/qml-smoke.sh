@@ -7,6 +7,21 @@ set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# ---- the palette is qualified ----------------------------------------------
+#
+# Qt 6.12 ships a `Color` type of its own, and it wins over qs.Commons' palette
+# singleton: a bare `Color.accent` evaluates to undefined and draws black, and
+# qmllint passes it. Omarchy reads its palette as `Commons.Color` (`import
+# qs.Commons as Commons`), so this fails on any bare `Color.` in the plugin's
+# QML. A text match needs no Qt, so it runs first. A whole-line comment may
+# still say `Color.`; code may not.
+bare_color="$(cd "$HERE" && grep -HnE '(^|[^.[:alnum:]_])Color\.' -- *.qml | grep -vE '^[^:]*:[0-9]+:[[:space:]]*//')"
+if [[ -n $bare_color ]]; then
+  echo "qml-smoke: FAIL — bare Color. resolves to Qt's own type; write Commons.Color.:" >&2
+  printf '%s\n' "$bare_color" | sed 's/^/  /' >&2
+  exit 1
+fi
+
 QML=""
 for candidate in qml6 /usr/lib/qt6/bin/qml qml-qt6; do
   if command -v "$candidate" >/dev/null 2>&1; then QML="$candidate"; break; fi
