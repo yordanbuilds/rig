@@ -19,9 +19,17 @@ Item {
   property string stacksDir: Quickshell.env("HOME") + "/.config/rig/stacks"
   property string homeDir: Quickshell.env("HOME")
 
+  // From Omarchy 4.5 a third-party plugin's `shell` is a facade that summons
+  // only the plugin's own id, so asking it for the menu returns false. The
+  // shell's IPC, which bin/rig already summons the menu through, is not
+  // scoped that way; the direct call stays first because it saves a spawn
+  // wherever it still works.
   function open(payloadJson) {
-    if (root.shell && typeof root.shell.summon === "function")
-      root.shell.summon("omarchy.menu", JSON.stringify({ menu: "trigger.rig" }))
+    const payload = JSON.stringify({ menu: "trigger.rig" })
+    if (root.shell && typeof root.shell.summon === "function"
+        && root.shell.summon("omarchy.menu", payload))
+      return
+    Quickshell.execDetached(["omarchy-shell", "shell", "summon", "omarchy.menu", payload])
   }
 
   function close() { }
