@@ -27,8 +27,10 @@ shell_quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
 # Mirrors stripJsonc() in Omarchy's shell/plugins/menu/MenuModel.js: whole-line
 # // comments and trailing commas come out, and what is left must decode as a
-# JSON object. A file that fails this contributes no entries at all — the menu
-# drops every user row and says nothing — so nothing lands until it parses.
+# JSON object. On Omarchy 4.0 a file that fails this contributes no entries at
+# all — the menu drops every user row and says nothing. From 4.5 the menu keeps
+# the rows it last read instead, so the change just never shows. Either way the
+# write is lost, so nothing lands until it parses.
 # Keep the s!...! delimiters: with s{...} the } inside [}\]] ends the pattern
 # early, perl errors, and the gate then rejects everything.
 menu_parses() {
